@@ -53,10 +53,14 @@ export const config = {
   auth: {
     // 'local'    -> single admin from ADMIN_USERNAME/ADMIN_PASSWORD_HASH
     // 'supabase' -> real users managed by Supabase Auth (email + password)
+    // Precedence: an explicit AUTH_PROVIDER wins; then whatever the app ships
+    // with; only as a last resort is the provider inferred from SUPABASE_URL.
+    // (Inferring it first meant that merely having SUPABASE_URL configured
+    // silently switched a passwordless dashboard back to asking for a login.)
     provider: (
       process.env.AUTH_PROVIDER ||
-      (process.env.SUPABASE_URL ? 'supabase' : publicConfig.authProvider) ||
-      'local'
+      publicConfig.authProvider ||
+      (process.env.SUPABASE_URL ? 'supabase' : 'local')
     ).toLowerCase(),
     username: process.env.ADMIN_USERNAME || 'admin',
     passwordHash: process.env.ADMIN_PASSWORD_HASH || '',

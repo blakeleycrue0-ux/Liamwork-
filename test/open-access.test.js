@@ -4,7 +4,10 @@ import { useTempDatabase } from './helpers.js';
 
 /** Open dashboard: no login. This is what the deployed site runs. */
 const cleanup = useTempDatabase('open-access');
-process.env.AUTH_PROVIDER = 'none';
+delete process.env.AUTH_PROVIDER;
+// Deliberately present: this used to be enough to turn the login back on.
+process.env.SUPABASE_URL = 'https://example-project.supabase.co';
+process.env.SUPABASE_ANON_KEY = 'anon-key-for-tests';
 
 const { runMigrations } = await import('../src/db/migrate.js');
 const { closeDb } = await import('../src/db/index.js');
@@ -73,4 +76,14 @@ test('diagnostics still reports a healthy deploy', async () => {
   const data = await response.json();
   assert.equal(data.ok, true);
   assert.equal(data.auth.provider, 'none');
+});
+
+test('a leftover SUPABASE_URL does not resurrect the login', async () => {
+  // Having Supabase configured must not, by itself, switch a passwordless
+  // dashboard back into asking for credentials: only AUTH_PROVIDER decides.
+  const { config } = await import('../src/config/index.js');
+  assert.equal(config.auth.provider, 'none');
+
+  const response = await call('/api/websites');
+  assert.equal(response.status, 200);
 });
