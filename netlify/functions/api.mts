@@ -8,6 +8,10 @@ import type { Config, Context } from '@netlify/functions';
  * broken dependency), the platform would otherwise answer a blank 502 with the
  * reason buried in the logs. This way the browser gets the actual error.
  */
+// Serverless has no writable disk, so SQLite is never an option here. Set
+// before anything is imported, because the configuration reads it on load.
+process.env.DB_DRIVER ||= 'postgres';
+
 type Handler = (request: Request, context?: unknown) => Promise<Response>;
 
 let handlerPromise: Promise<Handler> | null = null;

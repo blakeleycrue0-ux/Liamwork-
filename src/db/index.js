@@ -9,11 +9,17 @@ async function createDriver() {
   }
   // Non-literal specifier on purpose: esbuild (Netlify) must not follow this
   // import, or the native SQLite binding ends up in the serverless bundle and
-  // the function dies on start-up with "Cannot find package 'better-sqlite3'".
-  // Nothing evaluates it unless the SQLite driver is actually in use.
+  // the function dies on start-up. It is only ever reached outside serverless.
   const sqliteDriver = './drivers/sqlite.driver.js';
-  const { createSqliteDriver } = await import(sqliteDriver);
-  return createSqliteDriver({ file: config.db.file });
+  try {
+    const { createSqliteDriver } = await import(sqliteDriver);
+    return createSqliteDriver({ file: config.db.file });
+  } catch (error) {
+    throw new Error(
+      `No se pudo cargar el driver SQLite (${error.message}). ` +
+        'En un entorno serverless usa Postgres: define DATABASE_URL o DB_DRIVER=postgres.',
+    );
+  }
 }
 
 /**

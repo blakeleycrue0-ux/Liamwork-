@@ -33,8 +33,16 @@ export const config = {
   db: {
     // 'sqlite' for local development, 'postgres' when running on Netlify
     // (or anywhere DATABASE_URL / NETLIFY_DATABASE_URL is provided).
-    driver: (process.env.DB_DRIVER || '').toLowerCase() ||
-      (process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL || process.env.NETLIFY
+    driver:
+      (process.env.DB_DRIVER || '').toLowerCase() ||
+      (process.env.NETLIFY_DATABASE_URL ||
+      process.env.DATABASE_URL ||
+      process.env.NETLIFY ||
+      // Inside a serverless function NETLIFY is not set, but the Lambda
+      // runtime always exposes these. SQLite is never an option there: the
+      // filesystem is read-only and gone after every invocation.
+      process.env.LAMBDA_TASK_ROOT ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME
         ? 'postgres'
         : 'sqlite'),
     file: path.resolve(ROOT_DIR, process.env.DATABASE_FILE || './data/web-monitor.sqlite'),
