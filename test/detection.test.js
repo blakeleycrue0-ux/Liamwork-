@@ -60,3 +60,38 @@ test('content hash ignores tracking params and trailing slashes', () => {
 test('parses dd/mm/yyyy dates', () => {
   assert.match(parseDate('15/09/2026'), /^2026-09-15/);
 });
+
+test('detects a listing whose markup matches none of the usual containers', () => {
+  // No <article>, no .post, no <li>: just a grid of divs, which is what many
+  // hand-made or template-built sites look like.
+  const html = `<html><body>
+    <nav><a href="/">Inicio</a><a href="/contacto">Contacto</a></nav>
+    <div class="contenedor-x7">
+      <div><a href="/noticias/convocatoria-2027">Convocatoria oficial del campeonato 2027</a><span class="fecha">15/09/2026</span></div>
+      <div><a href="/noticias/calendario-liga">Calendario de la liga nacional publicado</a><span class="fecha">14/09/2026</span></div>
+      <div><a href="/noticias/arbitros">Nuevo cuadro de árbitros para la temporada</a></div>
+    </div>
+    <footer><a href="/aviso-legal">Aviso legal</a><a href="/cookies">Cookies</a></footer>
+  </body></html>`;
+
+  const items = extractFromHtml(html, 'https://ffsp.info', {});
+  assert.equal(items.length, 3);
+  assert.equal(items[0].title, 'Convocatoria oficial del campeonato 2027');
+  assert.equal(items[0].url, 'https://ffsp.info/noticias/convocatoria-2027');
+  assert.ok(
+    items.every((item) => !/Inicio|Contacto|Cookies|Aviso legal/.test(item.title)),
+    'navigation and footer links must not be treated as publications',
+  );
+});
+
+test('a page with only navigation yields nothing', () => {
+  const html = `<html><body><nav><a href="/">Inicio</a><a href="/contacto">Contacto</a></nav></body></html>`;
+  assert.deepEqual(extractFromHtml(html, 'https://ffsp.info', {}), []);
+});
+
+test('an explicit selector that matches nothing does not fall back silently', () => {
+  // If you configured a selector, a wrong one must show up as "0 detected"
+  // instead of being papered over by the heuristic.
+  const html = `<html><body><div><a href="/x">Una publicación cualquiera del sitio</a></div></body></html>`;
+  assert.deepEqual(extractFromHtml(html, 'https://ffsp.info', { list: '.no-existe' }), []);
+});

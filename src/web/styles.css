@@ -138,4 +138,23 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #bfdbfe; outline-
 @media (max-width: 720px) {
   .topbar { flex-wrap: wrap; }
   .container { padding: 16px; }
+
+  /* Tables become cards: a phone cannot show six columns without cutting them
+     off, and this dashboard is used mostly from a phone. */
+  .table-wrap { overflow-x: visible; border: 0; background: transparent; box-shadow: none; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+  tr {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); margin-bottom: 12px; padding: 4px 0;
+  }
+  td { border-bottom: 0; padding: 6px 14px; }
+  td:first-child { padding-top: 12px; }
+  td.actions { text-align: left; white-space: normal; padding-bottom: 12px; }
+  td.actions button { margin: 0 6px 6px 0; }
+  .empty { padding: 20px; }
+
+  .modal { padding: 16px; }
+  .modal-actions { flex-wrap: wrap; }
+  .page-head { gap: 8px; }
 }
