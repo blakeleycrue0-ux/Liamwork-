@@ -10,7 +10,7 @@ import {
 import { countPostsByWebsite, listPosts } from '../../db/repositories/posts.repo.js';
 import { listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { checkWebsite } from '../../crawler/index.js';
-import { previewWebsite } from '../../crawler/fetchers/index.js';
+import { aiConfigured, detectWithAi, previewWebsite } from '../../crawler/fetchers/index.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { parseWebsitePayload, ValidationError } from '../validate.js';
 
@@ -93,6 +93,30 @@ websiteRoutes.post(
     return res.json({ preview });
   }),
 );
+
+/**
+ * Detection assisted by Claude: reads the page once and returns both the
+ * publications it sees and the CSS selectors that describe them, so the
+ * following checks are plain scraping - no cost per minute.
+ */
+websiteRoutes.post(
+  '/ai-detect',
+  asyncHandler(async (req, res) => {
+    const data = parseWebsitePayload({ check_interval: 60, ...req.body });
+    const result = await detectWithAi({ ...data, id: 0 });
+    return res.json({
+      detection: {
+        items: result.items.slice(0, 10),
+        total: result.items.length,
+        selectors: result.selectors,
+        notes: result.notes,
+        usage: result.usage,
+      },
+    });
+  }),
+);
+
+websiteRoutes.get('/ai-status', (req, res) => res.json({ available: aiConfigured() }));
 
 websiteRoutes.get(
   '/:id/posts',

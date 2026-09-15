@@ -193,6 +193,9 @@ Desde *Webs → Añadir / Editar*:
   si no encuentra ninguno, hace scraping HTML con una heurística genérica
   (`article`, `.post`, `.noticia`, `.card`…). Los selectores solo hacen falta
   cuando esa heurística no acierta.
+- **`ai`**: la IA lee la página en **cada** comprobación. Útil para webs que
+  cambian de estructura a menudo, pero cuesta dinero por comprobación; para el
+  caso normal usa el botón, no este método.
 - **`browser`**: para webs que cargan el listado con JavaScript. Requiere
   instalar Playwright (dependencia **opcional**, no se instala por defecto):
 
@@ -204,6 +207,26 @@ Desde *Webs → Añadir / Editar*:
   webs marcadas como `browser`, con su error registrado en el historial.
 
 ---
+
+## 6 bis. Detección asistida por IA
+
+Cuando una web no publica RSS y su listado no encaja con la detección
+automática, el formulario ofrece **"Detectar con IA"**: Claude lee esa página
+una sola vez y devuelve las publicaciones que ve **y los selectores CSS** que
+las describen. Esos selectores se escriben en el formulario, así que a partir de
+guardarlos las comprobaciones vuelven a ser scraping normal: sin tokens, sin
+latencia y sin coste por minuto.
+
+Solo hace falta una clave de Anthropic en el entorno:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Sin ella el botón responde que falta la clave y el resto del sistema funciona
+igual. El modelo usado es `claude-opus-5`, con salida estructurada para que la
+respuesta sea siempre una lista validada de publicaciones y selectores, nunca
+texto libre que haya que adivinar.
 
 ## 7. Esquema de base de datos
 

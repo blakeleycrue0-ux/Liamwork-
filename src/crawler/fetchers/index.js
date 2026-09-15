@@ -2,8 +2,9 @@ import { fetchText } from '../httpClient.js';
 import { fetchViaRss } from './rss.fetcher.js';
 import { discoverFeeds, extractFromHtml, fetchViaHtml } from './html.fetcher.js';
 import { fetchViaBrowser } from './browser.fetcher.js';
+import { aiConfigured, detectWithAi, fetchViaAi } from './ai.fetcher.js';
 
-export const DETECTION_METHODS = ['auto', 'rss', 'html', 'browser'];
+export const DETECTION_METHODS = ['auto', 'rss', 'html', 'browser', 'ai'];
 
 /** Common feed locations, tried only when the page declares none. */
 const COMMON_FEED_PATHS = ['/feed', '/rss', '/rss.xml', '/feed.xml', '/atom.xml', '/index.xml', '/?feed=rss2'];
@@ -61,6 +62,8 @@ export async function fetchWebsiteItems(website) {
       return { ...(await fetchViaHtml(website)), resolvedMethod: 'html' };
     case 'browser':
       return { ...(await fetchViaBrowser(website)), resolvedMethod: 'browser' };
+    case 'ai':
+      return { ...(await fetchViaAi(website)), resolvedMethod: 'ai' };
     case 'auto':
     default:
       return fetchAuto(website);
@@ -78,4 +81,4 @@ export async function previewWebsite(website) {
   };
 }
 
-export { fetchText, extractFromHtml, discoverFeeds };
+export { fetchText, extractFromHtml, discoverFeeds, aiConfigured, detectWithAi };

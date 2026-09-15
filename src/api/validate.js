@@ -6,7 +6,7 @@ export class ValidationError extends Error {
   }
 }
 
-export const DETECTION_METHODS = ['auto', 'rss', 'html', 'browser'];
+export const DETECTION_METHODS = ['auto', 'rss', 'html', 'browser', 'ai'];
 const SELECTOR_KEYS = ['feed_url', 'list', 'title', 'link', 'date', 'wait_for'];
 
 export function parseWebsitePayload(body, { partial = false } = {}) {

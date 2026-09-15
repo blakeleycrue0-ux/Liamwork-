@@ -147,15 +147,17 @@ function openModal({ title, fields, submitLabel = 'Guardar', onSubmit, secondary
     );
 
   const actions = [cancel];
-  if (secondary) {
-    const button = el('button', { type: 'button', textContent: secondary.label });
+  for (const action of [].concat(secondary ?? [])) {
+    const button = el('button', { type: 'button', textContent: action.label });
     button.addEventListener('click', async () => {
       button.disabled = true;
       error.hidden = true;
       output.hidden = false;
-      output.replaceChildren(el('div', { className: 'muted', textContent: 'Comprobando…' }));
+      output.replaceChildren(
+        el('div', { className: 'muted', textContent: action.pending ?? 'Comprobando…' }),
+      );
       try {
-        await secondary.onClick(readValues(), output);
+        await action.onClick(readValues(), output, form);
       } catch (err) {
         output.replaceChildren(el('div', { className: 'error-text', textContent: err.message }));
       } finally {
@@ -299,6 +301,7 @@ const websiteFields = (website = {}) => [
       { value: 'rss', label: 'RSS / Atom' },
       { value: 'html', label: 'Scraping HTML' },
       { value: 'browser', label: 'Navegador headless (Playwright)' },
+      { value: 'ai', label: 'IA en cada comprobación (más caro)' },
     ],
   },
   {
@@ -366,12 +369,47 @@ async function previewDetection(values, output) {
   );
 }
 
+/**
+ * Asks Claude to read the page and describe its listing. The selectors it
+ * returns are written straight into the form, so from then on the checks are
+ * ordinary scraping: the model is used once, not every minute.
+ */
+async function detectWithAi(values, output, form) {
+  const payload = toWebsitePayload({ ...values, name: values.name || 'Prueba' });
+  const { detection } = await api('/websites/ai-detect', { method: 'POST', body: payload });
+
+  for (const field of ['list', 'title', 'link', 'date']) {
+    if (detection.selectors?.[field]) form.elements[field].value = detection.selectors[field];
+  }
+  if (detection.total) form.elements.detection_method.value = 'html';
+
+  output.replaceChildren(
+    el('div', { style: 'font-weight:600', textContent: `La IA ha encontrado ${detection.total} publicaciones` }),
+    el('div', { className: 'hint', textContent: detection.notes }),
+    el(
+      'ul',
+      { style: 'margin:8px 0 0;padding-left:18px' },
+      detection.items.slice(0, 5).map((item) => el('li', { textContent: item.title })),
+    ),
+    el('div', {
+      className: 'hint',
+      style: 'margin-top:8px',
+      textContent: detection.total
+        ? 'Los selectores ya están rellenados arriba. Guarda y las próximas comprobaciones no usarán la IA.'
+        : 'Si la web carga su contenido con JavaScript, no hay nada que leer en el HTML.',
+    }),
+  );
+}
+
 function websiteModal(website) {
   openModal({
     title: website ? `Editar ${website.name}` : 'Añadir web',
     fields: websiteFields(website ?? {}),
     submitLabel: website ? 'Guardar cambios' : 'Añadir',
-    secondary: { label: 'Probar detección', onClick: previewDetection },
+    secondary: [
+      { label: 'Probar detección', onClick: previewDetection },
+      { label: 'Detectar con IA', onClick: detectWithAi, pending: 'La IA está leyendo la página…' },
+    ],
     onSubmit: async (values) => {
       const payload = toWebsitePayload(values);
       if (website) await api(`/websites/${website.id}`, { method: 'PUT', body: payload });
