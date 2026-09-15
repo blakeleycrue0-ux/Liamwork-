@@ -1,0 +1,47 @@
+# Web Monitor - dashboard + crawler as two independent processes
+# sharing one SQLite volume.
+#
+#   cp .env.example .env   (set SESSION_SECRET, ADMIN_PASSWORD_HASH, SMTP_*)
+#   docker compose up -d --build
+services:
+  web:
+    build: .
+    image: web-monitor:latest
+    command: ["node", "src/server.js"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_FILE: /data/web-monitor.sqlite
+      # Fixed inside the container; PORT in .env only picks the host port below.
+      PORT: "3000"
+      # The scheduler lives in the crawler service, not here.
+      RUN_SCHEDULER_IN_WEB: "false"
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - web-monitor-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  crawler:
+    build: .
+    image: web-monitor:latest
+    command: ["node", "src/crawler-process.js"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_FILE: /data/web-monitor.sqlite
+    volumes:
+      - web-monitor-data:/data
+    depends_on:
+      web:
+        condition: service_started
+
+volumes:
+  web-monitor-data:

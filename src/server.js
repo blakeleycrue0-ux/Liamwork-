@@ -4,8 +4,9 @@ import { createApp } from './api/server.js';
 import { Scheduler } from './scheduler/index.js';
 import { closeDb } from './db/index.js';
 import { updateState } from './db/repositories/crawlerState.repo.js';
+import { startOrExit } from './cli/startup.js';
 
-bootstrap();
+startOrExit(bootstrap);
 
 const app = createApp();
 const server = app.listen(config.server.port, config.server.host, () => {

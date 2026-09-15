@@ -1,0 +1,30 @@
+# Dashboard web. Instalar en /etc/systemd/system/webmonitor-web.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now webmonitor-web
+[Unit]
+Description=Web Monitor - dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=webmonitor
+Group=webmonitor
+WorkingDirectory=/opt/web-monitor
+EnvironmentFile=/opt/web-monitor/.env
+Environment=NODE_ENV=production
+Environment=RUN_SCHEDULER_IN_WEB=false
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/web-monitor/data
+
+[Install]
+WantedBy=multi-user.target

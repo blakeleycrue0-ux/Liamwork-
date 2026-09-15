@@ -253,3 +253,85 @@ Cubren, con un sitio de pruebas local levantado durante el test:
 - solo los trabajadores **activos** reciben los emails;
 - API protegida (401 sin sesión, 403 sin CSRF), alta/edición/borrado de webs y
   trabajadores, comprobación manual, email de prueba y configuración.
+
+---
+
+## 10. Despliegue
+
+Antes de desplegar, en el `.env` del servidor:
+
+```env
+NODE_ENV=production
+SESSION_SECRET=<48 bytes aleatorios>          # node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD_HASH=<npm run hash-password -- "tuPassword">
+SECURE_COOKIES=true                            # si sirves por HTTPS
+APP_BASE_URL=https://monitor.tudominio.com
+MAIL_TRANSPORT=smtp
+SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASSWORD=...
+```
+
+En producción la aplicación **se niega a arrancar** si falta `SESSION_SECRET` o
+la contraseña de administrador, y lo dice con un mensaje claro en vez de una
+traza.
+
+### Opción A — Docker Compose (recomendada)
+
+Levanta los dos procesos (dashboard y crawler) compartiendo un volumen con la
+base de datos SQLite:
+
+```bash
+cp .env.example .env     # y rellena los valores de arriba
+docker compose up -d --build
+docker compose logs -f crawler
+```
+
+- `web`: dashboard en el puerto `PORT` del host (3000 por defecto), con
+  `RUN_SCHEDULER_IN_WEB=false` y `HEALTHCHECK` contra `/health`.
+- `crawler`: `src/crawler-process.js`, reinicio automático.
+- `web-monitor-data`: volumen persistente en `/data`. **La base de datos vive
+  aquí**: si lo borras, pierdes webs, trabajadores e historial.
+
+Copia de seguridad:
+
+```bash
+docker compose exec web sh -c 'cat /data/web-monitor.sqlite' > backup-$(date +%F).sqlite
+```
+
+### Opción B — VPS con systemd
+
+```bash
+sudo useradd -r -m -d /opt/web-monitor webmonitor
+sudo rsync -a --exclude node_modules --exclude data ./ /opt/web-monitor/
+cd /opt/web-monitor && sudo -u webmonitor npm ci --omit=dev
+sudo -u webmonitor cp .env.example .env && sudo -u webmonitor nano .env
+
+sudo cp deploy/webmonitor-web.service deploy/webmonitor-crawler.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now webmonitor-web webmonitor-crawler
+sudo journalctl -u webmonitor-crawler -f
+```
+
+Delante, nginx como proxy inverso con TLS: `deploy/nginx.conf.example`
+(+ `sudo certbot --nginx -d monitor.tudominio.com`).
+
+### Opción C — PaaS (Railway, Render, Fly.io…)
+
+Funciona con el `Dockerfile` tal cual, con dos avisos importantes:
+
+1. **SQLite necesita disco persistente.** Monta un volumen en `/data` y pon
+   `DATABASE_FILE=/data/web-monitor.sqlite`. Sin volumen, el sistema de ficheros
+   es efímero y perderás la base de datos en cada despliegue.
+2. Despliega **dos servicios desde la misma imagen**: uno con
+   `node src/server.js` (y `RUN_SCHEDULER_IN_WEB=false`) y otro con
+   `node src/crawler-process.js`. Si tu plataforma no permite montar el mismo
+   volumen en dos servicios, usa un único servicio con
+   `RUN_SCHEDULER_IN_WEB=true`: web y crawler corren en el mismo proceso.
+
+### Después de desplegar
+
+1. Entra en el dashboard y comprueba que el crawler aparece como **Funcionando**.
+2. *Trabajadores → Email de prueba*: confirma que el SMTP real entrega el correo.
+3. *Webs → FFSP → Comprobar*: valida que el listado se detecta; si no, ajusta los
+   selectores desde el formulario.
+4. Vigila *Resumen → Errores recientes* durante el primer día.

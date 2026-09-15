@@ -1,0 +1,29 @@
+# Crawler independiente. Instalar en /etc/systemd/system/webmonitor-crawler.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now webmonitor-crawler
+[Unit]
+Description=Web Monitor - crawler
+After=network-online.target webmonitor-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=webmonitor
+Group=webmonitor
+WorkingDirectory=/opt/web-monitor
+EnvironmentFile=/opt/web-monitor/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/crawler-process.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/web-monitor/data
+
+[Install]
+WantedBy=multi-user.target

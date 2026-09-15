@@ -6,8 +6,9 @@
 import { bootstrap } from './bootstrap.js';
 import { Scheduler } from './scheduler/index.js';
 import { closeDb } from './db/index.js';
+import { startOrExit } from './cli/startup.js';
 
-bootstrap();
+startOrExit(bootstrap);
 
 const scheduler = new Scheduler().start();
 
