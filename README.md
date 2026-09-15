@@ -427,6 +427,18 @@ Una persona puede ser las dos cosas, o solo una.
 
 ### Configuración
 
+La URL del proyecto y la **clave anon** viajan en el repositorio
+(`src/config/public.config.json`) porque están pensadas para ser públicas: son
+las mismas que cualquier frontend envía al navegador. La seguridad la dan las
+políticas RLS de Supabase y la verificación del token en el servidor. Gracias a
+eso **el despliegue no necesita ninguna variable de entorno para funcionar**.
+
+En ese fichero no va nunca la clave `service_role`, ni el secreto JWT, ni la
+cadena de conexión: esas son secretas y van en variables de entorno.
+
+Para apuntar a otro proyecto de Supabase, edita ese fichero o define
+`SUPABASE_URL` y `SUPABASE_ANON_KEY`, que tienen prioridad.
+
 1. Crea un proyecto en [supabase.com](https://supabase.com).
 2. En *Project settings → API* copia la URL y las claves; en
    *Project settings → Database* copia la cadena de conexión.

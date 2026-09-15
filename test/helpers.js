@@ -8,6 +8,8 @@ export function useTempDatabase(name) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `web-monitor-${name}-`));
   process.env.DATABASE_FILE = path.join(dir, 'test.sqlite');
   process.env.MAIL_TRANSPORT = 'console';
+  // Individual tests override this before importing the app.
+  process.env.AUTH_PROVIDER = 'local';
   process.env.SESSION_SECRET = 'test-secret-value-for-sessions';
   process.env.ADMIN_PASSWORD = 'test-password';
   process.env.RUN_SCHEDULER_IN_WEB = 'false';

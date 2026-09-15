@@ -3,15 +3,13 @@
  *
  *   DATABASE_URL=postgresql://... npm run migrate:pg
  *
- * On Netlify this is not needed: the platform applies the same files from
- * netlify/database/migrations/ before publishing a deploy.
+ * On Netlify this is not needed: the platform applies the same schema from
+ * netlify/database/migrations/ before publishing a deploy, and the app checks
+ * it again on start-up.
  */
-import fs from 'node:fs';
-import path from 'node:path';
 import pg from 'pg';
-import { config, ROOT_DIR } from '../config/index.js';
-
-const MIGRATIONS_DIR = path.join(ROOT_DIR, 'netlify', 'database', 'migrations');
+import { config } from '../config/index.js';
+import { POSTGRES_SCHEMA, POSTGRES_SCHEMA_NAME } from '../db/schema.postgres.js';
 
 const connectionString = config.db.connectionString;
 if (!connectionString) {
@@ -30,33 +28,17 @@ try {
     name       TEXT PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
-
-  const { rows } = await client.query('SELECT name FROM schema_migrations');
-  const applied = new Set(rows.map((row) => row.name));
-
-  const folders = fs
-    .readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-
-  let count = 0;
-  for (const folder of folders) {
-    if (applied.has(folder)) continue;
-    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, folder, 'migration.sql'), 'utf8');
-    await client.query('BEGIN');
-    try {
-      await client.query(sql);
-      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [folder]);
-      await client.query('COMMIT');
-      console.log(`[db] applied migration ${folder}`);
-      count += 1;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    }
-  }
-  console.log(count ? `[db] ${count} migration(s) applied` : '[db] schema up to date');
+  await client.query('BEGIN');
+  await client.query(POSTGRES_SCHEMA);
+  await client.query(
+    'INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+    [POSTGRES_SCHEMA_NAME],
+  );
+  await client.query('COMMIT');
+  console.log(`[db] esquema aplicado (${POSTGRES_SCHEMA_NAME})`);
+} catch (error) {
+  await client.query('ROLLBACK');
+  throw error;
 } finally {
   client.release();
   await pool.end();

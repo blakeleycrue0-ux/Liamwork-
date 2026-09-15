@@ -1,6 +1,8 @@
 import 'dotenv/config';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import publicConfig from './public.config.json' with { type: 'json' };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = path.resolve(__dirname, '..', '..');
@@ -41,7 +43,11 @@ export const config = {
   auth: {
     // 'local'    -> single admin from ADMIN_USERNAME/ADMIN_PASSWORD_HASH
     // 'supabase' -> real users managed by Supabase Auth (email + password)
-    provider: (process.env.AUTH_PROVIDER || (process.env.SUPABASE_URL ? 'supabase' : 'local')).toLowerCase(),
+    provider: (
+      process.env.AUTH_PROVIDER ||
+      (process.env.SUPABASE_URL ? 'supabase' : publicConfig.authProvider) ||
+      'local'
+    ).toLowerCase(),
     username: process.env.ADMIN_USERNAME || 'admin',
     passwordHash: process.env.ADMIN_PASSWORD_HASH || '',
     password: process.env.ADMIN_PASSWORD || '',
@@ -51,8 +57,10 @@ export const config = {
   },
 
   supabase: {
-    url: (process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
-    anonKey: process.env.SUPABASE_ANON_KEY || '',
+    // URL and anon key ship with the app on purpose (see public.config.json);
+    // environment variables override them when pointing at another project.
+    url: (process.env.SUPABASE_URL || publicConfig.supabase?.url || '').replace(/\/+$/, ''),
+    anonKey: process.env.SUPABASE_ANON_KEY || publicConfig.supabase?.anonKey || '',
     // Server-only: lets the dashboard list, invite and remove users.
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
     // Legacy projects sign tokens with HS256 and this shared secret; newer

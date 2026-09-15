@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "Configuracion PUBLICA de la aplicacion, versionada a proposito.",
+    "La URL del proyecto de Supabase y la clave anon estan disenadas para viajar",
+    "en el navegador (la seguridad la dan las politicas RLS de Supabase y la",
+    "verificacion del token en el servidor), igual que en cualquier frontend.",
+    "Aqui NO va nunca la clave service_role, el secreto JWT ni la cadena de",
+    "conexion a la base de datos: esos van en variables de entorno.",
+    "Cualquier valor de este fichero puede sobreescribirse con su variable de",
+    "entorno equivalente."
+  ],
+  "authProvider": "supabase",
+  "supabase": {
+    "url": "https://txawmfomjaqmehwqvufq.supabase.co",
+    "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4YXdtZm9tamFxbWVod3F2dWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0ODQ1NTMsImV4cCI6MjEwNTA2MDU1M30.6qT4zu4DnQxoAJyNw-FQxQk1YEsZUVTr9zdfM-XEdiU"
+  }
+}
