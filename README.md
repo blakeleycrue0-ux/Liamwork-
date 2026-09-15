@@ -217,6 +217,18 @@ las describen. Esos selectores se escriben en el formulario, así que a partir d
 guardarlos las comprobaciones vuelven a ser scraping normal: sin tokens, sin
 latencia y sin coste por minuto.
 
+### Reparación automática
+
+Además del botón, el crawler se repara solo: cuando una web que antes daba
+resultados deja de dar ninguno -casi siempre porque ha cambiado su maquetación-,
+la IA la lee **una vez** y guarda selectores nuevos, que las comprobaciones
+siguientes reutilizan gratis.
+
+Está limitado a propósito: como mucho un intento cada `ai_recovery_min_hours`
+horas por web (6 por defecto, configurable en el dashboard). Leer cada web con
+el modelo cada minuto costaría cientos de euros al día; esto son unas pocas
+llamadas por web al mes, y solo cuando algo se ha roto de verdad.
+
 Solo hace falta una clave de Anthropic en el entorno:
 
 ```env

@@ -206,6 +206,19 @@
             <label for="crawler_enabled" style="margin:0">Crawler activo</label>
           </div>
           <div class="field checkbox">
+            <input type="checkbox" id="ai_recovery_enabled" name="ai_recovery_enabled">
+            <label for="ai_recovery_enabled" style="margin:0">
+              Reparar la detección con IA cuando una web deje de dar resultados
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <label for="ai_recovery_min_hours">Horas mínimas entre intentos con IA</label>
+              <input id="ai_recovery_min_hours" name="ai_recovery_min_hours" type="number" min="1" max="168">
+              <div class="hint">Evita que una web rota llame al modelo una y otra vez.</div>
+            </div>
+          </div>
+          <div class="field checkbox">
             <input type="checkbox" id="notify_on_first_check" name="notify_on_first_check">
             <label for="notify_on_first_check" style="margin:0">Notificar también en la primera comprobación de una web</label>
           </div>

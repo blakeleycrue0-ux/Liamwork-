@@ -34,8 +34,9 @@ const NUMERIC_SETTINGS = {
   crawler_concurrency: [1, 64],
   max_items_per_email: [1, 100],
   log_retention_days: [0, 365],
+  ai_recovery_min_hours: [1, 168],
 };
-const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled'];
+const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled', 'ai_recovery_enabled'];
 
 export const settingsRoutes = Router();
 settingsRoutes.get(

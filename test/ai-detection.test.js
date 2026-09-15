@@ -49,3 +49,31 @@ test('without a key it fails with an explanation, not a crash', async () => {
     },
   );
 });
+
+test('with no key configured, a website that finds nothing is not retried with the AI', async (t) => {
+  // The recovery path must stay silent (and free) when there is no key: the
+  // check still succeeds, it simply reports zero items.
+  const { startFixtureSite } = await import('./helpers.js');
+  const { runMigrations } = await import('../src/db/migrate.js');
+  const websites = await import('../src/db/repositories/websites.repo.js');
+  const logs = await import('../src/db/repositories/checkLogs.repo.js');
+  const { checkWebsite } = await import('../src/crawler/index.js');
+
+  await runMigrations({ log: () => {} });
+  const site = await startFixtureSite({ posts: [], withFeed: false });
+  t.after(() => site.close());
+
+  const website = await websites.createWebsite({
+    name: 'Sin publicaciones',
+    url: site.url,
+    active: true,
+    check_interval: 60,
+    detection_method: 'auto',
+    selector_config: {},
+  });
+
+  const result = await checkWebsite(website);
+  assert.equal(result.ok, true);
+  assert.equal(result.itemsFound, 0);
+  assert.equal(await logs.lastAiAttemptAt(website.id), null, 'no AI attempt was recorded');
+});

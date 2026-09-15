@@ -883,6 +883,8 @@ async function init() {
       log_retention_days: form.log_retention_days.value,
       crawler_enabled: form.crawler_enabled.checked,
       notify_on_first_check: form.notify_on_first_check.checked,
+      ai_recovery_enabled: form.ai_recovery_enabled.checked,
+      ai_recovery_min_hours: form.ai_recovery_min_hours.value,
     };
     try {
       const { settings } = await api('/settings', { method: 'PUT', body: payload });

@@ -1,14 +1,53 @@
-import { addLog } from '../db/repositories/checkLogs.repo.js';
-import { getInt } from '../db/repositories/settings.repo.js';
+import { addLog, lastAiAttemptAt } from '../db/repositories/checkLogs.repo.js';
+import { getBool, getInt } from '../db/repositories/settings.repo.js';
 import {
   getWebsite,
   listWebsites,
   recordFailure,
   recordSuccess,
+  updateWebsite,
 } from '../db/repositories/websites.repo.js';
 import { notifyNewPosts } from '../notifications/notifier.js';
 import { detectNewPosts } from './detector.js';
-import { fetchWebsiteItems } from './fetchers/index.js';
+import { aiConfigured, detectWithAi, fetchWebsiteItems } from './fetchers/index.js';
+
+/**
+ * Self-healing detection.
+ *
+ * A website that suddenly returns nothing has almost always changed its
+ * markup. Instead of waiting for someone to notice, the AI reads it once and
+ * writes down fresh selectors, which the next checks reuse for free.
+ *
+ * Deliberately rate-limited: reading every site with the model every minute
+ * would cost hundreds of euros a day, while this costs a few calls per site
+ * per month and only when something is actually broken.
+ */
+async function tryAiRecovery(website) {
+  if (!aiConfigured()) return null;
+  if (!(await getBool('ai_recovery_enabled', true))) return null;
+  if (website.detection_method === 'ai') return null;
+
+  const minHours = await getInt('ai_recovery_min_hours', 6);
+  const lastAttempt = await lastAiAttemptAt(website.id);
+  if (lastAttempt && Date.now() - new Date(lastAttempt).getTime() < minHours * 3600_000) {
+    return null;
+  }
+
+  const result = await detectWithAi(website);
+  if (!result.items.length) return { items: [], usedAi: true };
+
+  // Keep what it learned, so the next checks need no model at all.
+  const selectors = Object.fromEntries(
+    Object.entries(result.selectors ?? {}).filter(([, value]) => value),
+  );
+  if (selectors.list) {
+    await updateWebsite(website.id, {
+      selector_config: { ...website.selector_config, ...selectors },
+      detection_method: website.detection_method === 'auto' ? 'html' : website.detection_method,
+    });
+  }
+  return { items: result.items, usedAi: true, selectors };
+}
 
 /** True when the website has never been checked or its interval has elapsed. */
 export function isDue(website, now = Date.now()) {
@@ -44,7 +83,22 @@ export async function checkWebsite(websiteOrId, { force = false } = {}) {
 
   const startedAt = Date.now();
   try {
-    const fetched = await fetchWebsiteItems(website);
+    let fetched = await fetchWebsiteItems(website);
+
+    // Nothing found: let the AI re-learn this site, at most once every few hours.
+    let recovery = null;
+    if (!fetched.items.length) {
+      recovery = await tryAiRecovery(website).catch((error) => {
+        console.error(`[crawler] AI recovery failed for "${website.name}": ${error.message}`);
+        return null;
+      });
+      if (recovery?.items.length) {
+        fetched = { ...fetched, items: recovery.items, resolvedMethod: 'ai-recovery' };
+      } else if (recovery) {
+        fetched = { ...fetched, resolvedMethod: 'ai-recovery' };
+      }
+    }
+
     const detection = await detectNewPosts(website, fetched.items);
 
     let notification = { sent: false, reason: 'no-new-posts' };

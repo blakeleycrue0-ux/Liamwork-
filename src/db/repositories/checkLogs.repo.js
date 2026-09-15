@@ -53,6 +53,16 @@ export async function listLogs({ websiteId = null, onlyErrors = false, limit = 5
   }));
 }
 
+/** When the AI last looked at this website, so it is never called in a loop. */
+export async function lastAiAttemptAt(websiteId) {
+  const db = await getDb();
+  const row = await db.get(
+    "SELECT MAX(checked_at) AS at FROM check_logs WHERE website_id = ? AND method LIKE 'ai%'",
+    [websiteId],
+  );
+  return row?.at ?? null;
+}
+
 export async function lastCheckedAt() {
   const db = await getDb();
   const row = await db.get('SELECT MAX(checked_at) AS at FROM check_logs');
