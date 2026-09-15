@@ -98,7 +98,7 @@ function fmtDuration(seconds) {
 const dot = (kind) => el('span', { className: `dot ${kind}` });
 
 /* ------------------------------------------------------------------ modal */
-function openModal({ title, fields, submitLabel = 'Guardar', onSubmit }) {
+function openModal({ title, fields, submitLabel = 'Guardar', onSubmit, secondary = null }) {
   const form = el('form');
   for (const field of fields) {
     if (field.type === 'checkbox') {
@@ -134,9 +134,38 @@ function openModal({ title, fields, submitLabel = 'Guardar', onSubmit }) {
   }
 
   const error = el('div', { className: 'error-text', hidden: true });
+  const output = el('div', { className: 'preview-box', hidden: true });
   const submit = el('button', { className: 'btn-primary', type: 'submit', textContent: submitLabel });
   const cancel = el('button', { type: 'button', textContent: 'Cancelar' });
-  form.append(error, el('div', { className: 'modal-actions' }, [cancel, submit]));
+
+  const readValues = () =>
+    Object.fromEntries(
+      fields.map((field) => {
+        const input = form.elements[field.name];
+        return [field.name, field.type === 'checkbox' ? input.checked : input.value];
+      }),
+    );
+
+  const actions = [cancel];
+  if (secondary) {
+    const button = el('button', { type: 'button', textContent: secondary.label });
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      error.hidden = true;
+      output.hidden = false;
+      output.replaceChildren(el('div', { className: 'muted', textContent: 'Comprobando…' }));
+      try {
+        await secondary.onClick(readValues(), output);
+      } catch (err) {
+        output.replaceChildren(el('div', { className: 'error-text', textContent: err.message }));
+      } finally {
+        button.disabled = false;
+      }
+    });
+    actions.push(button);
+  }
+  actions.push(submit);
+  form.append(error, output, el('div', { className: 'modal-actions' }, actions));
 
   const modal = el('div', { className: 'modal' }, [el('h2', { textContent: title }), form]);
   const backdrop = el('div', { className: 'modal-backdrop' }, [modal]);
@@ -148,12 +177,7 @@ function openModal({ title, fields, submitLabel = 'Guardar', onSubmit }) {
     event.preventDefault();
     error.hidden = true;
     submit.disabled = true;
-    const values = Object.fromEntries(
-      fields.map((field) => {
-        const input = form.elements[field.name];
-        return [field.name, field.type === 'checkbox' ? input.checked : input.value];
-      }),
-    );
+    const values = readValues();
     try {
       await onSubmit(values);
       close();
@@ -305,11 +329,49 @@ const toWebsitePayload = (values) => ({
   },
 });
 
+/** Runs the detector against the values in the form, without saving anything.
+ *  Turns "no detecta nada" into something you can actually see. */
+async function previewDetection(values, output) {
+  const payload = toWebsitePayload({ ...values, name: values.name || 'Prueba' });
+  const { preview } = await api('/websites/preview', { method: 'POST', body: payload });
+
+  if (!preview.total) {
+    output.replaceChildren(
+      el('div', { style: 'font-weight:600', textContent: 'No se ha detectado ninguna publicación' }),
+      el('div', { className: 'hint', textContent: `Método usado: ${preview.method} · ${preview.source}` }),
+      el('div', {
+        className: 'hint',
+        textContent:
+          'Esta web no publica un RSS reconocible y su listado no encaja con la detección automática. ' +
+          'Rellena "Selector CSS del listado" (y opcionalmente título y enlace) con las clases del bloque ' +
+          'de cada noticia, y vuelve a probar.',
+      }),
+    );
+    return;
+  }
+
+  output.replaceChildren(
+    el('div', { style: 'font-weight:600', textContent: `Detectadas ${preview.total} publicaciones` }),
+    el('div', { className: 'hint', textContent: `Método usado: ${preview.method} · ${preview.source}` }),
+    el(
+      'ul',
+      { style: 'margin:8px 0 0;padding-left:18px' },
+      preview.items.slice(0, 5).map((item) =>
+        el('li', { style: 'margin-bottom:4px' }, [
+          el('div', { textContent: item.title }),
+          item.url ? el('div', { className: 'mono hint', textContent: item.url }) : '',
+        ]),
+      ),
+    ),
+  );
+}
+
 function websiteModal(website) {
   openModal({
     title: website ? `Editar ${website.name}` : 'Añadir web',
     fields: websiteFields(website ?? {}),
     submitLabel: website ? 'Guardar cambios' : 'Añadir',
+    secondary: { label: 'Probar detección', onClick: previewDetection },
     onSubmit: async (values) => {
       const payload = toWebsitePayload(values);
       if (website) await api(`/websites/${website.id}`, { method: 'PUT', body: payload });
