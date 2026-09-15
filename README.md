@@ -333,11 +333,20 @@ drivers (`src/db/drivers/`) y las consultas se escriben una sola vez.
 En local sigue usándose SQLite; en Netlify se usa Postgres automáticamente
 (`DB_DRIVER` lo detecta por la variable `NETLIFY`).
 
+Dos formas de publicar:
+
+**1. Conectando el repositorio (recomendado)** — en
+*Project configuration → Build & deploy → Link repository*, elige este
+repositorio y la rama. Netlify compila, aplica las migraciones y aprovisiona la
+base de datos en cada despliegue.
+
+**2. Desde tu máquina:**
+
 ```bash
 npm install -g netlify-cli
 netlify login
-netlify link          # o: netlify sites:create
-netlify deploy --prod # o conecta el repositorio de GitHub desde la UI
+netlify link --id <SITE_ID>   # o: netlify sites:create
+netlify deploy --prod
 ```
 
 Variables de entorno a configurar en *Project configuration → Environment variables*:

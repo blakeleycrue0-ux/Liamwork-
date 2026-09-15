@@ -17,8 +17,10 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # Native/optional modules that must never be bundled into a function.
-  external_node_modules = ["better-sqlite3", "playwright"]
+  # The native SQLite binding is only used for local development; it must be
+  # copied, never bundled. (Playwright is loaded through a non-literal dynamic
+  # import, so the bundler ignores it.)
+  external_node_modules = ["better-sqlite3"]
 
 [[redirects]]
   from = "/login"

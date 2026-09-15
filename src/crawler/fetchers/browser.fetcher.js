@@ -17,7 +17,10 @@ async function getBrowser() {
     browserPromise = (async () => {
       let playwright;
       try {
-        playwright = await import('playwright');
+        // Non-literal specifier on purpose: bundlers (esbuild on Netlify) must
+        // not try to resolve this optional dependency at build time.
+        const moduleName = 'playwright';
+        playwright = await import(moduleName);
       } catch {
         throw new Error(
           'detection_method "browser" requires Playwright. Run: npm install playwright && npx playwright install chromium',
