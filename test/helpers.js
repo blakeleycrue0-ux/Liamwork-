@@ -65,3 +65,50 @@ export function startFixtureSite({ posts = [], withFeed = true, failing = false 
     });
   });
 }
+
+/**
+ * Minimal stand-in for the Supabase Auth endpoints the app talks to
+ * (GET /auth/v1/user and the admin users API), so the legacy HS256 flow can be
+ * tested without network access.
+ */
+export function startFakeSupabase({ users = {}, adminUsers = [] } = {}) {
+  const state = { users, adminUsers, calls: 0 };
+
+  const server = http.createServer((req, res) => {
+    state.calls += 1;
+    const url = new URL(req.url, 'http://localhost');
+    const token = (req.headers.authorization || '').replace(/^Bearer /i, '');
+    const json = (status, body) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+
+    if (url.pathname === '/auth/v1/user') {
+      const user = state.users[token];
+      return user ? json(200, user) : json(401, { msg: 'invalid claim' });
+    }
+    if (url.pathname === '/auth/v1/admin/users' && req.method === 'GET') {
+      return json(200, { users: state.adminUsers });
+    }
+    if (url.pathname === '/auth/v1/admin/users' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      return req.on('end', () => {
+        const created = { id: `id-${state.adminUsers.length + 1}`, ...JSON.parse(body || '{}') };
+        state.adminUsers.push(created);
+        json(200, created);
+      });
+    }
+    return json(404, { msg: 'not found' });
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        url: `http://127.0.0.1:${server.address().port}`,
+        state,
+        close: () => new Promise((done) => server.close(done)),
+      });
+    });
+  });
+}

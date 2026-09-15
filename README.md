@@ -455,6 +455,23 @@ servidor. El código nunca la envía al navegador; la sección *Usuarios* la usa
 través de la API. Sin ella todo funciona igual, pero esa sección responde 501 y
 las altas se hacen desde el panel de Supabase.
 
+### Cómo se verifican los tokens
+
+El servidor comprueba cada JWT en este orden, y no hace falta configurar nada
+para que funcione:
+
+1. **`SUPABASE_JWT_SECRET`** si lo defines: verificación local con HS256, sin
+   red. Es la opción más rápida y la recomendada en producción. Está en
+   *Project settings → API → JWT Settings* (proyectos antiguos).
+2. **JWKS** del proyecto, para proyectos con claves asimétricas (ES256/RS256):
+   verificación local contra las claves públicas publicadas por Supabase.
+3. **Consulta a Supabase** (`GET /auth/v1/user`) cuando el token va firmado con
+   HS256 y no tienes el secreto configurado. Los proyectos antiguos no publican
+   ese secreto, así que esta es la única vía: basta con la URL y la clave anon.
+   Los tokens validados se guardan en memoria un minuto, de forma que el
+   refresco del dashboard cada pocos segundos no genere una llamada por
+   petición.
+
 ### Qué NO cambia
 
 El crawler, la detección de novedades, los emails y el resto del dashboard son
