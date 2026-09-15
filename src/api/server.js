@@ -7,6 +7,7 @@ import { DbSessionStore } from './sessionStore.js';
 import { csrfProtection, isSupabaseAuth, requireAuth } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { authRoutes } from './routes/auth.routes.js';
+import { diagnosticsRoutes } from './routes/diagnostics.routes.js';
 import { websiteRoutes } from './routes/websites.routes.js';
 import { workerRoutes } from './routes/workers.routes.js';
 import { statusRoutes } from './routes/status.routes.js';
@@ -47,6 +48,8 @@ export function createApp() {
     return res.sendFile(path.join(WEB_DIR, 'login.html'));
   });
   app.use('/api/auth', authRoutes);
+  // Public on purpose: it is the first thing to look at when a deploy misbehaves.
+  app.use('/api/diagnostics', diagnosticsRoutes);
 
   // Everything below requires a session.
   app.use('/api', requireAuth, csrfProtection);

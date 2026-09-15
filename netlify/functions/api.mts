@@ -1,32 +1,24 @@
 import type { Config, Context } from '@netlify/functions';
 import { createApp } from '../../src/api/server.js';
 import { createRequestHandler } from '../../src/api/serverless.js';
-import { ensureReady } from '../../src/bootstrap.js';
+import { ensureReady, readyError } from '../../src/bootstrap.js';
 
 /**
  * The whole Express API as a single serverless function. The dashboard itself
  * (HTML/CSS/JS) is served statically from the CDN, so only /api/* and /health
  * reach this function.
  */
-let handlerPromise: Promise<(request: Request, context?: unknown) => Promise<Response>> | null = null;
-
-const getHandler = () => {
-  if (!handlerPromise) {
-    handlerPromise = (async () => {
-      // Seeds the initial website/worker once per cold start. Schema migrations
-      // are applied by Netlify DB before the deploy is published.
-      await ensureReady({ log: console.log });
-      return createRequestHandler(createApp());
-    })().catch((error) => {
-      handlerPromise = null;
-      throw error;
-    });
-  }
-  return handlerPromise;
-};
+const handler = createRequestHandler(createApp());
 
 export default async (request: Request, context: Context) => {
-  const handler = await getHandler();
+  // Seeding/migrations run once per cold start, but a database problem must not
+  // take the whole API down: routes that do not touch the database (the auth
+  // configuration, /health, /api/diagnostics) still answer, and the ones that
+  // do report the real reason instead of a blank 500.
+  await ensureReady({ log: console.log }).catch((error) => {
+    console.error('[bootstrap] failed:', error.message);
+  });
+  if (readyError()) request.headers.set('x-web-monitor-bootstrap-error', readyError().message);
   return handler(request, context);
 };
 

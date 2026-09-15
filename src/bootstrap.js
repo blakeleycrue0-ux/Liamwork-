@@ -51,12 +51,23 @@ export async function bootstrap({ log = console.log, seed = true } = {}) {
 
 /** Serverless entry points call this once per cold start. */
 let readyPromise = null;
+let lastError = null;
+
 export function ensureReady(options) {
   if (!readyPromise) {
-    readyPromise = bootstrap(options).catch((error) => {
-      readyPromise = null;
-      throw error;
-    });
+    readyPromise = bootstrap(options)
+      .then((result) => {
+        lastError = null;
+        return result;
+      })
+      .catch((error) => {
+        readyPromise = null;
+        lastError = error;
+        throw error;
+      });
   }
   return readyPromise;
 }
+
+/** The last start-up failure, so the API can explain itself. */
+export const readyError = () => lastError;

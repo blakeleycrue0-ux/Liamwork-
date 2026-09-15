@@ -6,8 +6,15 @@ let configPromise = null;
 export function authConfig() {
   if (!configPromise) {
     configPromise = fetch('/api/auth/config')
-      .then((response) => response.json())
-      .catch(() => ({ provider: 'local', supabase: null }));
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`El servidor respondió ${response.status} en /api/auth/config`);
+        }
+        return response.json();
+      })
+      // Never pretend it is local mode: that hides the real problem behind a
+      // login form that cannot work.
+      .catch((error) => ({ provider: 'unavailable', supabase: null, error: error.message }));
   }
   return configPromise;
 }

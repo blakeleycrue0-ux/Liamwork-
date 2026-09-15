@@ -41,6 +41,19 @@ async function call(path, { method = 'GET', body } = {}) {
   return { status: response.status, data, headers: response.headers };
 }
 
+test('diagnostics is public and reports a healthy deploy', async () => {
+  // Public on purpose: it is what you open when a deploy misbehaves, and it
+  // carries no secrets and no data.
+  const { status, data } = await call('/api/diagnostics');
+  assert.equal(status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.database.ok, true);
+  assert.equal(data.startup_error, null);
+  assert.equal('anon_key_configured' in data.auth, true);
+  // Field names say whether a key is configured; the values never travel.
+  assert.equal(JSON.stringify(data).includes('eyJ'), false, 'no key values, ever');
+});
+
 test('the API is protected until you log in', async () => {
   const anonymous = await call('/api/websites');
   assert.equal(anonymous.status, 401);

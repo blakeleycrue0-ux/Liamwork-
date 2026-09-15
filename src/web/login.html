@@ -33,7 +33,16 @@
     const label = document.getElementById('user-label');
     const hint = document.getElementById('provider-hint');
 
-    const { provider } = await authConfig();
+    const { provider, error: configError } = await authConfig();
+
+    if (provider === 'unavailable') {
+      errorBox.innerHTML =
+        `No se pudo contactar con el servidor. ${configError}<br><br>` +
+        'Abre <a href="/api/diagnostics">/api/diagnostics</a> para ver qué falla.';
+      errorBox.hidden = false;
+      form.querySelector('button[type=submit]').disabled = true;
+    }
+
     if (provider === 'supabase') {
       label.textContent = 'Email';
       form.username.type = 'email';
@@ -45,6 +54,9 @@
       event.preventDefault();
       errorBox.hidden = true;
       try {
+        if (provider === 'unavailable') {
+          throw new Error('El servidor no responde; revisa /api/diagnostics');
+        }
         if (provider === 'supabase') {
           await signIn(form.username.value.trim(), form.password.value);
           window.location.href = '/';
