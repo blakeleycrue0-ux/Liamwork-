@@ -696,6 +696,11 @@ async function init() {
   state.csrfToken = me.csrfToken ?? null;
   state.user = me.user ?? storedUser();
 
+  if (state.provider === 'none') {
+    // No hay sesión que cerrar.
+    $('#logout').hidden = true;
+  }
+
   if (state.provider === 'supabase') {
     document.getElementById('tab-users').hidden = false;
     const label = document.getElementById('current-user');

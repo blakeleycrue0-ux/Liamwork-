@@ -1,7 +1,7 @@
 import type { Config, Context } from '@netlify/functions';
 import { createApp } from '../../src/api/server.js';
 import { createRequestHandler } from '../../src/api/serverless.js';
-import { ensureReady, readyError } from '../../src/bootstrap.js';
+import { ensureReady } from '../../src/bootstrap.js';
 
 /**
  * The whole Express API as a single serverless function. The dashboard itself
@@ -18,7 +18,6 @@ export default async (request: Request, context: Context) => {
   await ensureReady({ log: console.log }).catch((error) => {
     console.error('[bootstrap] failed:', error.message);
   });
-  if (readyError()) request.headers.set('x-web-monitor-bootstrap-error', readyError().message);
   return handler(request, context);
 };
 

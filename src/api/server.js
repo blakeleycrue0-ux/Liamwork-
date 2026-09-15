@@ -4,7 +4,7 @@ import express from 'express';
 import session from 'express-session';
 import { config } from '../config/index.js';
 import { DbSessionStore } from './sessionStore.js';
-import { csrfProtection, isSupabaseAuth, requireAuth } from './middleware/auth.js';
+import { csrfProtection, isOpenAccess, isSupabaseAuth, requireAuth } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { diagnosticsRoutes } from './routes/diagnostics.routes.js';
@@ -44,6 +44,7 @@ export function createApp() {
 
   // Public: login page + login endpoint.
   app.get('/login', (req, res) => {
+    if (isOpenAccess()) return res.redirect('/');
     if (!isSupabaseAuth() && req.session?.user) return res.redirect('/');
     return res.sendFile(path.join(WEB_DIR, 'login.html'));
   });
@@ -67,7 +68,9 @@ export function createApp() {
   // This is also how it is served on Netlify, straight from the CDN.
   const sendDashboard = (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html'));
   app.get('/', (req, res, next) =>
-    isSupabaseAuth() ? sendDashboard(req, res) : requireAuth(req, res, () => sendDashboard(req, res)),
+    isSupabaseAuth() || isOpenAccess()
+      ? sendDashboard(req, res)
+      : requireAuth(req, res, () => sendDashboard(req, res)),
   );
   app.use(express.static(WEB_DIR, { index: false }));
 

@@ -35,6 +35,10 @@
 
     const { provider, error: configError } = await authConfig();
 
+    if (provider === 'none') {
+      window.location.replace('/');
+    }
+
     if (provider === 'unavailable') {
       errorBox.innerHTML =
         `No se pudo contactar con el servidor. ${configError}<br><br>` +

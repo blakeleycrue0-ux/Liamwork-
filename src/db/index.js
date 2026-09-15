@@ -7,9 +7,12 @@ async function createDriver() {
     const { createPostgresDriver } = await import('./drivers/postgres.driver.js');
     return createPostgresDriver({ connectionString: config.db.connectionString });
   }
-  // Imported lazily so bundlers targeting serverless never pull in the native
-  // SQLite binding.
-  const { createSqliteDriver } = await import('./drivers/sqlite.driver.js');
+  // Non-literal specifier on purpose: esbuild (Netlify) must not follow this
+  // import, or the native SQLite binding ends up in the serverless bundle and
+  // the function dies on start-up with "Cannot find package 'better-sqlite3'".
+  // Nothing evaluates it unless the SQLite driver is actually in use.
+  const sqliteDriver = './drivers/sqlite.driver.js';
+  const { createSqliteDriver } = await import(sqliteDriver);
   return createSqliteDriver({ file: config.db.file });
 }
 

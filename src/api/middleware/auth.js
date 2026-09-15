@@ -4,6 +4,8 @@ import { hashPassword, verifyPassword } from '../password.js';
 import { bearerToken, verifyAccessToken } from '../auth/supabase.js';
 
 export const isSupabaseAuth = () => config.auth.provider === 'supabase';
+/** Open dashboard: no login at all. Anyone with the URL can use it. */
+export const isOpenAccess = () => config.auth.provider === 'none';
 
 let cachedHash = null;
 
@@ -65,6 +67,8 @@ export async function checkCredentials(username, password) {
  * JSON 401 for API calls, redirect to the login page for page requests.
  */
 export async function requireAuth(req, res, next) {
+  if (isOpenAccess()) return next();
+
   // originalUrl, because this middleware is mounted under /api.
   const isApi = req.originalUrl.startsWith('/api/');
 
@@ -92,7 +96,7 @@ export async function requireAuth(req, res, next) {
  * ambient cookie, so another origin cannot make the browser send it.
  */
 export function csrfProtection(req, res, next) {
-  if (isSupabaseAuth()) return next();
+  if (isSupabaseAuth() || isOpenAccess()) return next();
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const token = req.get('x-csrf-token');
   if (!req.session?.csrfToken || token !== req.session.csrfToken) {

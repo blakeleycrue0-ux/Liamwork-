@@ -1,8 +1,7 @@
 import 'dotenv/config';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import publicConfig from './public.config.json' with { type: 'json' };
+import { publicConfig } from './public.config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = path.resolve(__dirname, '..', '..');
@@ -101,11 +100,14 @@ export const config = {
 /** Fatal configuration problems (only enforced in production). */
 export function validateConfig({ strict = config.isProduction } = {}) {
   const problems = [];
-  // Sessions are only used by the local provider; Supabase uses bearer tokens.
-  if (config.auth.provider !== 'supabase' && (!config.auth.sessionSecret || config.auth.sessionSecret.length < 16)) {
+  // Sessions are only used by the local provider: Supabase uses bearer tokens
+  // and the open mode has no login at all.
+  if (config.auth.provider === 'local' && (!config.auth.sessionSecret || config.auth.sessionSecret.length < 16)) {
     problems.push('SESSION_SECRET is missing or too short (min. 16 characters).');
   }
-  if (config.auth.provider === 'supabase') {
+  if (config.auth.provider === 'none') {
+    // Nothing to validate: the dashboard is open.
+  } else if (config.auth.provider === 'supabase') {
     if (!config.supabase.url) problems.push('AUTH_PROVIDER=supabase requires SUPABASE_URL.');
     if (!config.supabase.anonKey) problems.push('AUTH_PROVIDER=supabase requires SUPABASE_ANON_KEY.');
   } else if (!config.auth.passwordHash && !config.auth.password) {

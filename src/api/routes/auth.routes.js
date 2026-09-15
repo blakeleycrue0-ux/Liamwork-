@@ -3,6 +3,7 @@ import { config } from '../../config/index.js';
 import {
   checkCredentials,
   clearLoginFailures,
+  isOpenAccess,
   isSupabaseAuth,
   issueCsrfToken,
   loginRateLimit,
@@ -59,6 +60,9 @@ authRoutes.post('/logout', (req, res) => {
 authRoutes.get(
   '/me',
   asyncHandler(async (req, res) => {
+    if (isOpenAccess()) {
+      return res.json({ user: { name: 'Acceso abierto' }, provider: 'none' });
+    }
     if (isSupabaseAuth()) {
       const user = await verifyAccessToken(bearerToken(req));
       if (!user) return res.status(401).json({ error: 'No autenticado' });
