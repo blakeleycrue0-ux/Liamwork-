@@ -90,10 +90,12 @@ export const config = {
 
   seed: {
     websiteName: process.env.SEED_WEBSITE_NAME || 'FFSP',
-    websiteUrl: process.env.SEED_WEBSITE_URL || 'https://ffsp.info',
+    // `??` on purpose: setting the variable to an empty string disables the
+    // seed, which is how tests (and anyone who wants an empty install) opt out.
+    websiteUrl: process.env.SEED_WEBSITE_URL ?? 'https://ffsp.info',
     websiteInterval: int(process.env.SEED_WEBSITE_INTERVAL, 60),
     workerName: process.env.SEED_WORKER_NAME || 'Test Worker',
-    workerEmail: process.env.SEED_WORKER_EMAIL || 'cruecrv9445@gmail.com',
+    workerEmail: process.env.SEED_WORKER_EMAIL ?? 'cruecrv9445@gmail.com',
   },
 };
 

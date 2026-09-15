@@ -26,10 +26,18 @@ diagnosticsRoutes.get('/', async (req, res) => {
     server_time: new Date().toISOString(),
   };
 
+  const withTimeout = (promise, ms) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`sin respuesta tras ${ms}ms`)), ms).unref?.(),
+      ),
+    ]);
+
   try {
-    const db = await getDb();
-    await db.get('SELECT 1 AS ok');
-    const websites = await db.get('SELECT COUNT(*) AS n FROM websites');
+    const db = await withTimeout(getDb(), 6000);
+    await withTimeout(db.get('SELECT 1 AS ok'), 6000);
+    const websites = await withTimeout(db.get('SELECT COUNT(*) AS n FROM websites'), 6000);
     result.database.ok = true;
     result.database.websites = Number(websites?.n ?? 0);
   } catch (error) {

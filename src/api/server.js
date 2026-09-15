@@ -6,6 +6,7 @@ import { config } from '../config/index.js';
 import { DbSessionStore } from './sessionStore.js';
 import { csrfProtection, isOpenAccess, isSupabaseAuth, requireAuth } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
+import { waitForReady } from '../bootstrap.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { diagnosticsRoutes } from './routes/diagnostics.routes.js';
 import { websiteRoutes } from './routes/websites.routes.js';
@@ -52,8 +53,24 @@ export function createApp() {
   // Public on purpose: it is the first thing to look at when a deploy misbehaves.
   app.use('/api/diagnostics', diagnosticsRoutes);
 
+  /**
+   * Routes below need the database. They wait for the start-up sequence, but
+   * with a deadline: an unreachable database becomes a 503 that says so,
+   * instead of a request that hangs until the platform kills it with a 502.
+   */
+  const readyGate = async (req, res, next) => {
+    try {
+      await waitForReady({ timeoutMs: 6000 });
+      return next();
+    } catch (error) {
+      return res.status(503).json({
+        error: `${error.message}. Abre /api/diagnostics para ver el detalle.`,
+      });
+    }
+  };
+
   // Everything below requires a session.
-  app.use('/api', requireAuth, csrfProtection);
+  app.use('/api', readyGate, requireAuth, csrfProtection);
   app.use('/api/websites', websiteRoutes);
   app.use('/api/workers', workerRoutes);
   app.use('/api/status', statusRoutes);

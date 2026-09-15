@@ -11,11 +11,11 @@ import { ensureReady } from '../../src/bootstrap.js';
 const handler = createRequestHandler(createApp());
 
 export default async (request: Request, context: Context) => {
-  // Seeding/migrations run once per cold start, but a database problem must not
-  // take the whole API down: routes that do not touch the database (the auth
-  // configuration, /health, /api/diagnostics) still answer, and the ones that
-  // do report the real reason instead of a blank 500.
-  await ensureReady({ log: console.log }).catch((error) => {
+  // Start migrations/seeding, but NEVER wait for them here: a database that
+  // does not answer would burn the platform's 10-second budget and turn every
+  // route into a blank 502, including the ones that need no database at all.
+  // Routes that do need it wait behind their own gate, with a deadline.
+  ensureReady({ log: console.log }).catch((error) => {
     console.error('[bootstrap] failed:', error.message);
   });
   return handler(request, context);

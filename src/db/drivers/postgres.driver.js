@@ -17,6 +17,12 @@ export async function createPostgresDriver({ connectionString }) {
       connectionString,
       ssl: /localhost|127\.0\.0\.1/.test(connectionString) ? false : { rejectUnauthorized: false },
       max: 5,
+      // Serverless has a hard request budget: a database that does not answer
+      // must fail quickly instead of hanging until the platform times out.
+      connectionTimeoutMillis: 6000,
+      idleTimeoutMillis: 10_000,
+      query_timeout: 8000,
+      statement_timeout: 8000,
     });
   } else {
     // On Netlify the connection string is provisioned automatically.

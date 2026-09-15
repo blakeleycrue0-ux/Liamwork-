@@ -71,3 +71,23 @@ export function ensureReady(options) {
 
 /** The last start-up failure, so the API can explain itself. */
 export const readyError = () => lastError;
+
+/**
+ * Waits for the start-up sequence, but never longer than `timeoutMs`.
+ * Routes that need the database use this so a slow or unreachable database
+ * turns into a clear 503 instead of a platform timeout.
+ */
+export async function waitForReady({ timeoutMs = 6000, log = () => {} } = {}) {
+  let timer;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs);
+    timer.unref?.();
+  });
+  try {
+    const outcome = await Promise.race([ensureReady({ log }).then(() => 'ready'), deadline]);
+    if (outcome === 'timeout') throw new Error('La base de datos no respondió a tiempo');
+    return true;
+  } finally {
+    clearTimeout(timer);
+  }
+}
