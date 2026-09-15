@@ -325,8 +325,15 @@ despliegue usa las piezas equivalentes de la plataforma:
 | Dashboard (`src/web`) | Ficheros estáticos servidos por la CDN |
 | API Express (`src/api`) | Una función serverless: `netlify/functions/api.mts` |
 | Scheduler + crawler | Función programada cada minuto: `netlify/functions/crawl-scheduled.mts` |
-| SQLite | **Netlify DB** (Postgres), aprovisionada automáticamente |
+| SQLite | **Netlify DB** (Postgres sobre Neon), aprovisionada automáticamente |
 | Migraciones | `netlify/database/migrations/`, aplicadas por la plataforma en cada deploy |
+
+La base de datos no necesita configuración: basta con la extensión **Neon**
+instalada en el proyecto y el paquete `@netlify/database` (ya es dependencia).
+En el primer despliegue Netlify crea la base de datos e inyecta su cadena de
+conexión en las funciones; el esquema se aplica solo al arrancar. Si prefieres
+usar otro Postgres (Supabase, por ejemplo), define `DATABASE_URL` y tendrá
+prioridad.
 
 El código de la aplicación es el mismo: la capa de base de datos tiene dos
 drivers (`src/db/drivers/`) y las consultas se escriben una sola vez.
