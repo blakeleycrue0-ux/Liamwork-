@@ -301,7 +301,6 @@ const websiteFields = (website = {}) => [
       { value: 'rss', label: 'RSS / Atom' },
       { value: 'html', label: 'Scraping HTML' },
       { value: 'browser', label: 'Navegador headless (Playwright)' },
-      { value: 'ai', label: 'IA en cada comprobación (más caro)' },
     ],
   },
   {
@@ -401,6 +400,67 @@ async function detectWithAi(values, output, form) {
   );
 }
 
+/** Shows what the page contains, so a broken listing can be configured. */
+async function inspectSite(values, output) {
+  const payload = toWebsitePayload({ ...values, name: values.name || 'Diagnóstico' });
+  const { inspection } = await api('/websites/inspect', { method: 'POST', body: payload });
+
+  const line = (label, value) =>
+    el('div', {}, [el('span', { className: 'hint', textContent: `${label}: ` }), String(value)]);
+
+  const nodes = [
+    el('div', { style: 'font-weight:600', textContent: 'Qué contiene la página' }),
+    line('Descargado', `${Math.round(inspection.bytes / 1024)} KB`),
+    line('Texto visible', `${inspection.visible_text_length} caracteres`),
+    line('Enlaces con texto', inspection.total_links),
+  ];
+
+  if (inspection.likely_javascript) {
+    nodes.push(
+      el('div', {
+        className: 'error-text',
+        textContent:
+          'Esta web carga su contenido con JavaScript: el HTML viene casi vacío, así que no hay nada que leer.',
+      }),
+    );
+  }
+
+  if (inspection.feeds.length) {
+    nodes.push(line('RSS encontrado', inspection.feeds.join(', ')));
+  }
+
+  if (inspection.candidates.length) {
+    nodes.push(
+      el('div', { style: 'font-weight:600;margin-top:8px', textContent: 'Bloques que se repiten' }),
+      el(
+        'ul',
+        { style: 'margin:4px 0 0;padding-left:18px' },
+        inspection.candidates.map((candidate) =>
+          el('li', {}, [
+            el('span', { className: 'mono', textContent: candidate.selector }),
+            ` — ${candidate.count} (${candidate.withLink} con enlace)`,
+          ]),
+        ),
+      ),
+    );
+  }
+
+  if (inspection.links.length) {
+    nodes.push(
+      el('div', { style: 'font-weight:600;margin-top:8px', textContent: 'Primeros enlaces' }),
+      el(
+        'ul',
+        { style: 'margin:4px 0 0;padding-left:18px' },
+        inspection.links.slice(0, 12).map((link) =>
+          el('li', {}, [link.text, el('div', { className: 'mono hint', textContent: link.href })]),
+        ),
+      ),
+    );
+  }
+
+  output.replaceChildren(...nodes);
+}
+
 function websiteModal(website) {
   openModal({
     title: website ? `Editar ${website.name}` : 'Añadir web',
@@ -408,7 +468,7 @@ function websiteModal(website) {
     submitLabel: website ? 'Guardar cambios' : 'Añadir',
     secondary: [
       { label: 'Probar detección', onClick: previewDetection },
-      { label: 'Detectar con IA', onClick: detectWithAi, pending: 'La IA está leyendo la página…' },
+      { label: 'Diagnóstico', onClick: inspectSite, pending: 'Leyendo la página…' },
     ],
     onSubmit: async (values) => {
       const payload = toWebsitePayload(values);

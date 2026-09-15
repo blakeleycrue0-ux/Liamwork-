@@ -11,6 +11,7 @@ import { countPostsByWebsite, listPosts } from '../../db/repositories/posts.repo
 import { listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { checkWebsite } from '../../crawler/index.js';
 import { aiConfigured, detectWithAi, previewWebsite } from '../../crawler/fetchers/index.js';
+import { inspectWebsite } from '../../crawler/inspect.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { parseWebsitePayload, ValidationError } from '../validate.js';
 
@@ -117,6 +118,15 @@ websiteRoutes.post(
 );
 
 websiteRoutes.get('/ai-status', (req, res) => res.json({ available: aiConfigured() }));
+
+/** Shows what a page really contains, to configure a listing without guessing. */
+websiteRoutes.post(
+  '/inspect',
+  asyncHandler(async (req, res) => {
+    const data = parseWebsitePayload({ check_interval: 60, name: 'Diagnóstico', ...req.body });
+    return res.json({ inspection: await inspectWebsite(data) });
+  }),
+);
 
 websiteRoutes.get(
   '/:id/posts',

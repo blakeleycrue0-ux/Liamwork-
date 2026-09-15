@@ -8,7 +8,7 @@ const DEFAULTS = {
   max_items_per_email: '20',
   crawler_enabled: 'true',
   log_retention_days: '30',
-  ai_recovery_enabled: 'true',
+  ai_recovery_enabled: 'false',
   ai_recovery_min_hours: '6',
 };
 

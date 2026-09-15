@@ -95,3 +95,17 @@ test('an explicit selector that matches nothing does not fall back silently', ()
   const html = `<html><body><div><a href="/x">Una publicación cualquiera del sitio</a></div></body></html>`;
   assert.deepEqual(extractFromHtml(html, 'https://ffsp.info', { list: '.no-existe' }), []);
 });
+
+test('the inspector reports a client-rendered page instead of guessing', async () => {
+  const { inspectWebsite } = await import('../src/crawler/inspect.js');
+  const { startFixtureSite } = await import('./helpers.js');
+
+  const site = await startFixtureSite({ posts: [{ title: 'Una noticia del club', url: '/n1' }] });
+  const inspection = await inspectWebsite({ url: site.url });
+  await site.close();
+
+  assert.equal(inspection.likely_javascript, false);
+  assert.ok(inspection.feeds.length, 'the declared feed is reported');
+  assert.ok(inspection.candidates.some((candidate) => candidate.selector === 'article'));
+  assert.ok(inspection.links.some((link) => link.text.includes('Una noticia del club')));
+});
