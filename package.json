@@ -1,0 +1,47 @@
+{
+  "name": "web-monitor",
+  "version": "1.0.0",
+  "description": "Dashboard de monitorizacion de webs con deteccion de nuevas publicaciones y alertas por email",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "crawler": "node src/crawler-process.js",
+    "migrate": "node -e \"import('./src/db/migrate.js').then(m=>m.runMigrations())\"",
+    "seed": "node src/cli/seed.js",
+    "check": "node src/cli/check-once.js",
+    "hash-password": "node src/cli/hash-password.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blakeleycrue0-ux/Liamwork-.git"
+  },
+  "keywords": [
+    "monitoring",
+    "crawler",
+    "rss",
+    "scraping",
+    "alerts"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/blakeleycrue0-ux/Liamwork-/issues"
+  },
+  "homepage": "https://github.com/blakeleycrue0-ux/Liamwork-#readme",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "fast-xml-parser": "^5.11.1",
+    "nodemailer": "^10.0.10"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "src/server.js"
+}
