@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import session from 'express-session';
 import { config } from '../config/index.js';
-import { SqliteSessionStore } from './sessionStore.js';
+import { DbSessionStore } from './sessionStore.js';
 import { csrfProtection, requireAuth } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { authRoutes } from './routes/auth.routes.js';
@@ -25,7 +25,7 @@ export function createApp() {
     session({
       name: 'wm.sid',
       secret: config.auth.sessionSecret || 'insecure-dev-secret-change-me',
-      store: new SqliteSessionStore(),
+      store: new DbSessionStore(),
       resave: false,
       saveUninitialized: false,
       rolling: true,

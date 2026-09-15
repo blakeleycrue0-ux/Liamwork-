@@ -8,19 +8,25 @@ import { asyncHandler } from '../middleware/errors.js';
 import { ValidationError } from '../validate.js';
 
 export const postRoutes = Router();
-postRoutes.get('/', (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-  const websiteId = req.query.website_id ? Number(req.query.website_id) : null;
-  res.json({ posts: listPosts({ limit, websiteId }) });
-});
+postRoutes.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const websiteId = req.query.website_id ? Number(req.query.website_id) : null;
+    res.json({ posts: await listPosts({ limit, websiteId }) });
+  }),
+);
 
 export const logRoutes = Router();
-logRoutes.get('/', (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 100, 500);
-  const websiteId = req.query.website_id ? Number(req.query.website_id) : null;
-  const onlyErrors = String(req.query.errors ?? '') === 'true';
-  res.json({ logs: listLogs({ limit, websiteId, onlyErrors }) });
-});
+logRoutes.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const websiteId = req.query.website_id ? Number(req.query.website_id) : null;
+    const onlyErrors = String(req.query.errors ?? '') === 'true';
+    res.json({ logs: await listLogs({ limit, websiteId, onlyErrors }) });
+  }),
+);
 
 const NUMERIC_SETTINGS = {
   default_check_interval: [10, 86400],
@@ -32,9 +38,12 @@ const NUMERIC_SETTINGS = {
 const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled'];
 
 export const settingsRoutes = Router();
-settingsRoutes.get('/', (req, res) => {
-  res.json({ settings: getAllSettings(), recipients: activeRecipients() });
-});
+settingsRoutes.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    res.json({ settings: await getAllSettings(), recipients: await activeRecipients() });
+  }),
+);
 
 settingsRoutes.put(
   '/',
@@ -52,7 +61,7 @@ settingsRoutes.put(
       if (req.body?.[key] === undefined) continue;
       patch[key] = Boolean(req.body[key]);
     }
-    res.json({ settings: setSettings(patch) });
+    res.json({ settings: await setSettings(patch) });
   }),
 );
 

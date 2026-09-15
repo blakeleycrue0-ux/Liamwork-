@@ -1,6 +1,6 @@
-import { getDb, nowIso } from '../index.js';
+import { bool, getDb, num, nowIso } from '../index.js';
 
-export function addLog({
+export async function addLog({
   websiteId,
   success,
   newItems = 0,
@@ -9,12 +9,11 @@ export function addLog({
   durationMs = null,
   errorMessage = null,
 }) {
-  const info = getDb()
-    .prepare(
-      `INSERT INTO check_logs (website_id, checked_at, success, new_items, items_found, method, duration_ms, error_message)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
+  const db = await getDb();
+  const row = await db.get(
+    `INSERT INTO check_logs (website_id, checked_at, success, new_items, items_found, method, duration_ms, error_message)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [
       websiteId,
       nowIso(),
       success ? 1 : 0,
@@ -23,34 +22,54 @@ export function addLog({
       method,
       durationMs,
       errorMessage ? String(errorMessage).slice(0, 1000) : null,
-    );
-  return info.lastInsertRowid;
+    ],
+  );
+  return row?.id;
 }
 
-export function listLogs({ websiteId = null, onlyErrors = false, limit = 50 } = {}) {
+export async function listLogs({ websiteId = null, onlyErrors = false, limit = 50 } = {}) {
+  const db = await getDb();
   const where = [];
-  if (websiteId) where.push('l.website_id = @websiteId');
+  const params = [];
+  if (websiteId) {
+    where.push('l.website_id = ?');
+    params.push(websiteId);
+  }
   if (onlyErrors) where.push('l.success = 0');
-  const sql = `SELECT l.*, w.name AS website_name
-               FROM check_logs l JOIN websites w ON w.id = l.website_id
-               ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-               ORDER BY l.checked_at DESC, l.id DESC LIMIT @limit`;
-  return getDb()
-    .prepare(sql)
-    .all({ websiteId, limit })
-    .map((row) => ({ ...row, success: Boolean(row.success) }));
+  params.push(limit);
+
+  const rows = await db.all(
+    `SELECT l.*, w.name AS website_name
+     FROM check_logs l JOIN websites w ON w.id = l.website_id
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY l.checked_at DESC, l.id DESC LIMIT ?`,
+    params,
+  );
+  return rows.map((row) => ({
+    ...row,
+    success: bool(row.success),
+    new_items: num(row.new_items),
+    items_found: num(row.items_found),
+  }));
 }
 
-export function lastCheckedAt() {
-  return getDb().prepare('SELECT MAX(checked_at) AS at FROM check_logs').get().at;
+export async function lastCheckedAt() {
+  const db = await getDb();
+  const row = await db.get('SELECT MAX(checked_at) AS at FROM check_logs');
+  return row?.at ?? null;
 }
 
-export function countErrorsSince(sinceIso) {
-  return getDb()
-    .prepare('SELECT COUNT(*) AS n FROM check_logs WHERE success = 0 AND checked_at >= ?')
-    .get(sinceIso).n;
+export async function countErrorsSince(sinceIso) {
+  const db = await getDb();
+  const row = await db.get(
+    'SELECT COUNT(*) AS n FROM check_logs WHERE success = 0 AND checked_at >= ?',
+    [sinceIso],
+  );
+  return num(row?.n);
 }
 
-export function purgeOlderThan(sinceIso) {
-  return getDb().prepare('DELETE FROM check_logs WHERE checked_at < ?').run(sinceIso).changes;
+export async function purgeOlderThan(sinceIso) {
+  const db = await getDb();
+  const { changes } = await db.run('DELETE FROM check_logs WHERE checked_at < ?', [sinceIso]);
+  return changes;
 }

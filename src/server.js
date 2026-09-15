@@ -6,7 +6,7 @@ import { closeDb } from './db/index.js';
 import { updateState } from './db/repositories/crawlerState.repo.js';
 import { startOrExit } from './cli/startup.js';
 
-startOrExit(bootstrap);
+await startOrExit(bootstrap);
 
 const app = createApp();
 const server = app.listen(config.server.port, config.server.host, () => {
@@ -24,9 +24,9 @@ if (config.crawler.runInWeb) {
 const shutdown = (signal) => {
   console.log(`\n[web] ${signal} received, shutting down`);
   scheduler?.stop();
-  if (!scheduler) updateState({ status: 'stopped' });
-  server.close(() => {
-    closeDb();
+  if (!scheduler) updateState({ status: 'stopped' }).catch(() => {});
+  server.close(async () => {
+    await closeDb();
     process.exit(0);
   });
   setTimeout(() => process.exit(0), 5000).unref();

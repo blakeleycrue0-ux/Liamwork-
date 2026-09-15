@@ -1,0 +1,33 @@
+# Netlify deployment for Web Monitor
+#
+#   - the dashboard (HTML/CSS/JS) is served statically from src/web
+#   - the Express API runs as one serverless function (netlify/functions/api.mts)
+#   - the crawler runs as a scheduled function, every minute
+#   - data lives in Netlify DB (Postgres); migrations in
+#     netlify/database/migrations are applied automatically on deploy
+[build]
+  publish = "src/web"
+  # No build step: the dashboard is plain HTML/CSS/JS and Netlify installs the
+  # dependencies on its own before bundling the functions.
+  command = "echo 'no build step'"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # Native/optional modules that must never be bundled into a function.
+  external_node_modules = ["better-sqlite3", "playwright"]
+
+[[redirects]]
+  from = "/login"
+  to = "/login.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "same-origin"

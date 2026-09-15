@@ -27,7 +27,15 @@ export const config = {
   },
 
   db: {
+    // 'sqlite' for local development, 'postgres' when running on Netlify
+    // (or anywhere DATABASE_URL / NETLIFY_DATABASE_URL is provided).
+    driver: (process.env.DB_DRIVER || '').toLowerCase() ||
+      (process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL || process.env.NETLIFY
+        ? 'postgres'
+        : 'sqlite'),
     file: path.resolve(ROOT_DIR, process.env.DATABASE_FILE || './data/web-monitor.sqlite'),
+    connectionString:
+      process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL || '',
   },
 
   auth: {

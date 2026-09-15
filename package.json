@@ -30,18 +30,24 @@
   },
   "homepage": "https://github.com/blakeleycrue0-ux/Liamwork-#readme",
   "dependencies": {
+    "@netlify/database": "^2.0.1",
     "better-sqlite3": "^13.0.3",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "fast-xml-parser": "^5.11.1",
-    "nodemailer": "^10.0.10"
+    "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
+    "serverless-http": "^4.0.0"
   },
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=20"
   },
-  "main": "src/server.js"
+  "main": "src/server.js",
+  "devDependencies": {
+    "@netlify/functions": "^6.0.0"
+  }
 }

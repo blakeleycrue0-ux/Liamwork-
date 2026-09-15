@@ -12,12 +12,12 @@ const logs = await import('../src/db/repositories/checkLogs.repo.js');
 const settings = await import('../src/db/repositories/settings.repo.js');
 const { checkWebsite, runDueChecks, isDue } = await import('../src/crawler/index.js');
 
-runMigrations({ log: () => {} });
-workers.createWorker({ name: 'Test Worker', email: 'test-worker@example.com', active: true });
-workers.createWorker({ name: 'Inactive', email: 'inactive@example.com', active: false });
+await runMigrations({ log: () => {} });
+await workers.createWorker({ name: 'Test Worker', email: 'test-worker@example.com', active: true });
+await workers.createWorker({ name: 'Inactive', email: 'inactive@example.com', active: false });
 
-test.after(() => {
-  closeDb();
+test.after(async () => {
+  await closeDb();
   cleanup();
 });
 
@@ -27,7 +27,7 @@ test('full lifecycle: baseline, new post, no duplicate alert', async (t) => {
   });
   t.after(() => site.close());
 
-  const website = websites.createWebsite({
+  const website = await websites.createWebsite({
     name: 'Fixture',
     url: site.url,
     active: true,
@@ -44,32 +44,32 @@ test('full lifecycle: baseline, new post, no duplicate alert', async (t) => {
   assert.equal(first.newItems, 1);
   assert.equal(first.notified, false);
 
-  const afterFirst = websites.getWebsite(website.id);
+  const afterFirst = await websites.getWebsite(website.id);
   assert.ok(afterFirst.last_checked_at, 'last check must be persisted');
   assert.ok(afterFirst.last_success_at);
 
   // 2. Same content again -> nothing new, no email.
-  const second = await checkWebsite(websites.getWebsite(website.id));
+  const second = await checkWebsite(await websites.getWebsite(website.id));
   assert.equal(second.newItems, 0);
   assert.equal(second.notified, false);
 
   // 3. A genuinely new publication -> detected and notified once.
   site.addPost({ title: 'New tournament announced for 2027', url: '/example-2' });
-  const third = await checkWebsite(websites.getWebsite(website.id));
+  const third = await checkWebsite(await websites.getWebsite(website.id));
   assert.equal(third.newItems, 1);
   assert.equal(third.notified, true);
   assert.deepEqual(third.notification.recipients, ['test-worker@example.com'], 'only active workers');
 
   // 4. Re-check: the known post must not be alerted twice.
-  const fourth = await checkWebsite(websites.getWebsite(website.id));
+  const fourth = await checkWebsite(await websites.getWebsite(website.id));
   assert.equal(fourth.newItems, 0);
   assert.equal(fourth.notified, false);
 
-  const stored = posts.listPosts({ websiteId: website.id });
+  const stored = await posts.listPosts({ websiteId: website.id });
   assert.equal(stored.length, 2);
   assert.ok(stored.every((post) => post.notified_at), 'every post is closed exactly once');
 
-  const websiteLogs = logs.listLogs({ websiteId: website.id });
+  const websiteLogs = await logs.listLogs({ websiteId: website.id });
   assert.equal(websiteLogs.length, 4);
   assert.ok(websiteLogs.every((log) => log.success));
 });
@@ -81,7 +81,7 @@ test('HTML scraping is used when the site has no feed', async (t) => {
   });
   t.after(() => site.close());
 
-  const website = websites.createWebsite({
+  const website = await websites.createWebsite({
     name: 'HTML only',
     url: site.url,
     active: true,
@@ -104,11 +104,11 @@ test('a failing website does not stop the others', async (t) => {
     await healthy.close();
   });
 
-  const brokenSite = websites.createWebsite({
+  const brokenSite = await websites.createWebsite({
     name: 'Broken', url: broken.url, active: true, check_interval: 1,
     detection_method: 'auto', selector_config: {},
   });
-  const healthySite = websites.createWebsite({
+  const healthySite = await websites.createWebsite({
     name: 'Healthy', url: healthy.url, active: true, check_interval: 1,
     detection_method: 'auto', selector_config: {},
   });
@@ -122,17 +122,17 @@ test('a failing website does not stop the others', async (t) => {
   assert.equal(healthyResult.ok, true, 'the healthy website is still checked');
   assert.ok(outcome.checked >= 2);
 
-  const refreshed = websites.getWebsite(brokenSite.id);
+  const refreshed = await websites.getWebsite(brokenSite.id);
   assert.equal(refreshed.consecutive_errors, 1);
   assert.ok(refreshed.last_error);
-  assert.equal(logs.listLogs({ websiteId: brokenSite.id, onlyErrors: true }).length, 1);
+  assert.equal((await logs.listLogs({ websiteId: brokenSite.id, onlyErrors: true })).length, 1);
 });
 
 test('inactive websites and workers are skipped', async (t) => {
   const site = await startFixtureSite({ posts: [{ title: 'Nada que notificar aqui', url: '/x' }] });
   t.after(() => site.close());
 
-  const website = websites.createWebsite({
+  const website = await websites.createWebsite({
     name: 'Paused', url: site.url, active: false, check_interval: 60,
     detection_method: 'auto', selector_config: {},
   });
@@ -152,13 +152,13 @@ test('interval controls when a website is due', () => {
 
 test('notify_on_first_check sends an email on the baseline run', async (t) => {
   const site = await startFixtureSite({ posts: [{ title: 'Primera publicacion notificada', url: '/first' }] });
-  t.after(() => {
-    settings.setSettings({ notify_on_first_check: false });
+  t.after(async () => {
+    await settings.setSettings({ notify_on_first_check: false });
     return site.close();
   });
 
-  settings.setSettings({ notify_on_first_check: true });
-  const website = websites.createWebsite({
+  await settings.setSettings({ notify_on_first_check: true });
+  const website = await websites.createWebsite({
     name: 'Notify first', url: site.url, active: true, check_interval: 60,
     detection_method: 'auto', selector_config: {},
   });

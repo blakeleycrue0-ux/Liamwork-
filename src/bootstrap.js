@@ -10,11 +10,11 @@ import { setSettings } from './db/repositories/settings.repo.js';
  * Values come from the environment, so nothing is hardcoded in the crawler and
  * everything stays editable from the dashboard afterwards.
  */
-export function seedInitialData({ log = console.log } = {}) {
+export async function seedInitialData({ log = console.log } = {}) {
   const created = { website: null, worker: null };
 
-  if (!listWebsites().length && config.seed.websiteUrl) {
-    created.website = createWebsite({
+  if (config.seed.websiteUrl && !(await listWebsites()).length) {
+    created.website = await createWebsite({
       name: config.seed.websiteName,
       url: config.seed.websiteUrl,
       active: true,
@@ -23,12 +23,12 @@ export function seedInitialData({ log = console.log } = {}) {
       selector_config: {},
       notes: 'Seed inicial - editable desde el dashboard',
     });
-    setSettings({ default_check_interval: config.seed.websiteInterval });
+    await setSettings({ default_check_interval: config.seed.websiteInterval });
     log(`[seed] website "${created.website.name}" (${created.website.url})`);
   }
 
-  if (!listWorkers().length && config.seed.workerEmail) {
-    created.worker = createWorker({
+  if (config.seed.workerEmail && !(await listWorkers()).length) {
+    created.worker = await createWorker({
       name: config.seed.workerName,
       email: config.seed.workerEmail,
       active: true,
@@ -39,12 +39,24 @@ export function seedInitialData({ log = console.log } = {}) {
   return created;
 }
 
-/** Shared start-up sequence for the web server and the crawler process. */
-export function bootstrap({ log = console.log, seed = true } = {}) {
+/** Shared start-up sequence for the web server, the crawler and the functions. */
+export async function bootstrap({ log = console.log, seed = true } = {}) {
   const warnings = validateConfig();
   for (const warning of warnings) log(`[config] warning: ${warning}`);
-  getDb();
-  runMigrations({ log });
-  if (seed) seedInitialData({ log });
+  await getDb();
+  await runMigrations({ log });
+  if (seed) await seedInitialData({ log });
   return { warnings };
+}
+
+/** Serverless entry points call this once per cold start. */
+let readyPromise = null;
+export function ensureReady(options) {
+  if (!readyPromise) {
+    readyPromise = bootstrap(options).catch((error) => {
+      readyPromise = null;
+      throw error;
+    });
+  }
+  return readyPromise;
 }

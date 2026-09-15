@@ -315,7 +315,60 @@ sudo journalctl -u webmonitor-crawler -f
 Delante, nginx como proxy inverso con TLS: `deploy/nginx.conf.example`
 (+ `sudo certbot --nginx -d monitor.tudominio.com`).
 
-### Opción C — PaaS (Railway, Render, Fly.io…)
+### Opción C — Netlify (serverless)
+
+Netlify no ejecuta procesos permanentes ni tiene disco persistente, así que el
+despliegue usa las piezas equivalentes de la plataforma:
+
+| Pieza local | En Netlify |
+|---|---|
+| Dashboard (`src/web`) | Ficheros estáticos servidos por la CDN |
+| API Express (`src/api`) | Una función serverless: `netlify/functions/api.mts` |
+| Scheduler + crawler | Función programada cada minuto: `netlify/functions/crawl-scheduled.mts` |
+| SQLite | **Netlify DB** (Postgres), aprovisionada automáticamente |
+| Migraciones | `netlify/database/migrations/`, aplicadas por la plataforma en cada deploy |
+
+El código de la aplicación es el mismo: la capa de base de datos tiene dos
+drivers (`src/db/drivers/`) y las consultas se escriben una sola vez.
+En local sigue usándose SQLite; en Netlify se usa Postgres automáticamente
+(`DB_DRIVER` lo detecta por la variable `NETLIFY`).
+
+```bash
+npm install -g netlify-cli
+netlify login
+netlify link          # o: netlify sites:create
+netlify deploy --prod # o conecta el repositorio de GitHub desde la UI
+```
+
+Variables de entorno a configurar en *Project configuration → Environment variables*:
+
+```
+SESSION_SECRET        <48 bytes aleatorios>
+ADMIN_USERNAME        admin
+ADMIN_PASSWORD_HASH   <npm run hash-password -- "tuPassword">
+SECURE_COOKIES        true
+RUN_SCHEDULER_IN_WEB  false
+MAIL_TRANSPORT        smtp
+MAIL_FROM             "Web Monitor <monitor@tudominio.com>"
+SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASSWORD
+SEED_WEBSITE_NAME / SEED_WEBSITE_URL / SEED_WORKER_NAME / SEED_WORKER_EMAIL
+```
+
+Limitaciones de la plataforma que conviene conocer:
+
+- Las funciones programadas tienen un límite de **30 segundos** y solo se
+  ejecutan en despliegues publicados (no en *deploy previews*). Por eso cada
+  ejecución comprueba como máximo 25 webs, empezando por las que llevan más
+  tiempo sin comprobarse; el resto entra en el minuto siguiente.
+- El intervalo mínimo real es de **1 minuto**, que es justo el pedido.
+- `detection_method: browser` (Playwright) **no funciona en Netlify**: no hay
+  navegador en el entorno de funciones. Para esas webs usa `rss`/`html`, o
+  despliega el crawler en un servidor con Docker y deja el dashboard en Netlify
+  (ambos apuntando a la misma base de datos).
+- El dashboard (`index.html`) se sirve como fichero estático: no contiene datos,
+  y todas las llamadas a `/api/*` siguen exigiendo sesión.
+
+### Opción D — PaaS (Railway, Render, Fly.io…)
 
 Funciona con el `Dockerfile` tal cual, con dos avisos importantes:
 

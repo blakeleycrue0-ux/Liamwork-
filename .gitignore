@@ -25,6 +25,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Netlify
+.netlify/
+
 # Build / coverage
 dist/
 coverage/

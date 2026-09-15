@@ -10,15 +10,15 @@ const { runMigrations } = await import('../src/db/migrate.js');
 const { closeDb } = await import('../src/db/index.js');
 const { createApp } = await import('../src/api/server.js');
 
-runMigrations({ log: () => {} });
+await runMigrations({ log: () => {} });
 
 const server = createApp().listen(0, '127.0.0.1');
 await new Promise((resolve) => server.once('listening', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-test.after(() => {
+test.after(async () => {
   server.close();
-  closeDb();
+  await closeDb();
   cleanup();
 });
 

@@ -11,26 +11,37 @@ import { runDueChecks } from '../crawler/index.js';
 export class Scheduler {
   constructor({ log = console.log } = {}) {
     this.log = log;
+    this.cachedTick = 15;
     this.timer = null;
     this.running = false;
     this.stopped = true;
     this.lastCleanup = 0;
   }
 
+  /** Cached so the timer can stay synchronous; refreshed on every tick. */
   get tickSeconds() {
-    return Math.max(5, getInt('scheduler_tick', 15));
+    return Math.max(5, this.cachedTick ?? 15);
+  }
+
+  async refreshTick() {
+    this.cachedTick = await getInt('scheduler_tick', 15);
+    return this.tickSeconds;
   }
 
   start() {
     if (!this.stopped) return this;
     this.stopped = false;
-    updateState({
-      status: 'idle',
-      pid: process.pid,
-      last_heartbeat_at: new Date().toISOString(),
-      next_run_at: new Date(Date.now() + this.tickSeconds * 1000).toISOString(),
-    });
-    this.log(`[scheduler] started (pid ${process.pid}, tick ${this.tickSeconds}s)`);
+    this.refreshTick()
+      .then(() =>
+        updateState({
+          status: 'idle',
+          pid: process.pid,
+          last_heartbeat_at: new Date().toISOString(),
+          next_run_at: new Date(Date.now() + this.tickSeconds * 1000).toISOString(),
+        }),
+      )
+      .catch((error) => this.log(`[scheduler] ${error.message}`));
+    this.log(`[scheduler] started (pid ${process.pid})`);
     this.scheduleNext(0);
     return this;
   }
@@ -46,19 +57,24 @@ export class Scheduler {
     this.running = true;
     const startedAt = Date.now();
     try {
-      if (!getBool('crawler_enabled', true)) {
-        updateState({ status: 'paused', last_heartbeat_at: new Date().toISOString() });
+      await this.refreshTick();
+      if (!(await getBool('crawler_enabled', true))) {
+        await updateState({ status: 'paused', last_heartbeat_at: new Date().toISOString() });
         return;
       }
-      updateState({ status: 'running', last_heartbeat_at: new Date().toISOString(), pid: process.pid });
+      await updateState({
+        status: 'running',
+        last_heartbeat_at: new Date().toISOString(),
+        pid: process.pid,
+      });
       const outcome = await runDueChecks();
       if (outcome.checked) {
         this.log(
           `[scheduler] checked ${outcome.checked} website(s), ${outcome.newItems} new item(s), ${outcome.failed} error(s)`,
         );
       }
-      this.maybeCleanup();
-      updateState({
+      await this.maybeCleanup();
+      await updateState({
         status: 'idle',
         last_run_at: new Date().toISOString(),
         last_run_duration_ms: Date.now() - startedAt,
@@ -68,7 +84,7 @@ export class Scheduler {
       });
     } catch (error) {
       this.log(`[scheduler] tick failed: ${error.stack || error.message}`);
-      updateState({ status: 'idle', last_heartbeat_at: new Date().toISOString() });
+      await updateState({ status: 'idle', last_heartbeat_at: new Date().toISOString() }).catch(() => {});
     } finally {
       this.running = false;
       this.scheduleNext();
@@ -76,14 +92,14 @@ export class Scheduler {
   }
 
   /** Housekeeping: drop check logs older than the configured retention. */
-  maybeCleanup() {
+  async maybeCleanup() {
     const hour = 60 * 60 * 1000;
     if (Date.now() - this.lastCleanup < hour) return;
     this.lastCleanup = Date.now();
-    const days = getInt('log_retention_days', 30);
+    const days = await getInt('log_retention_days', 30);
     if (days <= 0) return;
     const cutoff = new Date(Date.now() - days * 24 * hour).toISOString();
-    const removed = purgeOlderThan(cutoff);
+    const removed = await purgeOlderThan(cutoff);
     if (removed) this.log(`[scheduler] purged ${removed} old check log(s)`);
   }
 
@@ -91,7 +107,7 @@ export class Scheduler {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    updateState({ status: 'stopped', next_run_at: null });
+    updateState({ status: 'stopped', next_run_at: null }).catch(() => {});
     this.log('[scheduler] stopped');
   }
 }

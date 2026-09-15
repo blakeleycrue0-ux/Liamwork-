@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS crawler_state (
   pid                 INTEGER,
   updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
-INSERT OR IGNORE INTO crawler_state (id, status) VALUES (1, 'stopped');
+INSERT INTO crawler_state (id, status) VALUES (1, 'stopped') ON CONFLICT (id) DO NOTHING;
 
 -- Express session store.
 CREATE TABLE IF NOT EXISTS sessions (

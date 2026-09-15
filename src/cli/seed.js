@@ -1,6 +1,6 @@
 import { bootstrap } from '../bootstrap.js';
 import { closeDb } from '../db/index.js';
 
-bootstrap();
+await bootstrap();
 console.log('[seed] done');
-closeDb();
+await closeDb();

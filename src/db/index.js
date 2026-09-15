@@ -1,27 +1,43 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import Database from 'better-sqlite3';
 import { config } from '../config/index.js';
 
-let db = null;
+let driverPromise = null;
 
-/** Lazily open (and reuse) the SQLite connection. */
-export function getDb() {
-  if (db) return db;
-  fs.mkdirSync(path.dirname(config.db.file), { recursive: true });
-  db = new Database(config.db.file);
-  // WAL lets the web process and the crawler process work concurrently.
-  db.pragma('journal_mode = WAL');
-  db.pragma('busy_timeout = 5000');
-  db.pragma('foreign_keys = ON');
-  return db;
-}
-
-export function closeDb() {
-  if (db) {
-    db.close();
-    db = null;
+async function createDriver() {
+  if (config.db.driver === 'postgres') {
+    const { createPostgresDriver } = await import('./drivers/postgres.driver.js');
+    return createPostgresDriver({ connectionString: config.db.connectionString });
   }
+  // Imported lazily so bundlers targeting serverless never pull in the native
+  // SQLite binding.
+  const { createSqliteDriver } = await import('./drivers/sqlite.driver.js');
+  return createSqliteDriver({ file: config.db.file });
 }
 
+/**
+ * Returns the shared database driver. Both drivers expose the same async
+ * interface (`all`, `get`, `run`, `exec`, `transaction`), so repositories and
+ * everything above them are dialect-agnostic.
+ */
+export function getDb() {
+  if (!driverPromise) driverPromise = createDriver();
+  return driverPromise;
+}
+
+export async function closeDb() {
+  if (!driverPromise) return;
+  const db = await driverPromise;
+  driverPromise = null;
+  await db.close();
+}
+
+export const isPostgres = () => config.db.driver === 'postgres';
 export const nowIso = () => new Date().toISOString();
+
+/** COUNT()/SUM() come back as strings on Postgres; normalise to numbers. */
+export const num = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+/** Booleans are stored as 0/1 integers in both dialects. */
+export const bool = (value) => value === 1 || value === true || value === '1';

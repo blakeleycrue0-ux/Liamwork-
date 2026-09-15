@@ -7,10 +7,10 @@ import { bootstrap } from '../bootstrap.js';
 import { checkWebsite, runDueChecks } from '../crawler/index.js';
 import { closeDb } from '../db/index.js';
 
-bootstrap();
+await bootstrap();
 
 const id = process.argv[2] ? Number(process.argv[2]) : null;
 const outcome = id ? await checkWebsite(id, { force: true }) : await runDueChecks();
 console.log(JSON.stringify(outcome, null, 2));
-closeDb();
+await closeDb();
 process.exit(0);

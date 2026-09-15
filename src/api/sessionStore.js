@@ -2,51 +2,53 @@ import session from 'express-session';
 import { getDb } from '../db/index.js';
 
 /**
- * Minimal SQLite-backed session store: sessions survive a server restart and
- * no extra dependency is needed.
+ * Database-backed session store (SQLite locally, Postgres on Netlify):
+ * sessions survive restarts and work across serverless invocations.
  */
-export class SqliteSessionStore extends session.Store {
-  constructor() {
+export class DbSessionStore extends session.Store {
+  constructor({ cleanupIntervalMs = 10 * 60 * 1000 } = {}) {
     super();
-    this.db = getDb();
-    setInterval(() => this.cleanup(), 10 * 60 * 1000).unref?.();
+    if (cleanupIntervalMs) {
+      const timer = setInterval(() => this.cleanup(), cleanupIntervalMs);
+      timer.unref?.();
+    }
   }
 
-  cleanup() {
+  async cleanup() {
     try {
-      this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
+      const db = await getDb();
+      await db.run('DELETE FROM sessions WHERE expires_at < ?', [Date.now()]);
     } catch {
-      /* database closed */
+      /* database closed or unreachable */
     }
   }
 
   get(sid, callback) {
-    try {
-      const row = this.db.prepare('SELECT data, expires_at FROM sessions WHERE sid = ?').get(sid);
-      if (!row) return callback(null, null);
-      if (row.expires_at < Date.now()) {
-        this.destroy(sid, () => {});
-        return callback(null, null);
-      }
-      return callback(null, JSON.parse(row.data));
-    } catch (error) {
-      return callback(error);
-    }
+    getDb()
+      .then((db) => db.get('SELECT data, expires_at FROM sessions WHERE sid = ?', [sid]))
+      .then((row) => {
+        if (!row) return callback(null, null);
+        if (Number(row.expires_at) < Date.now()) {
+          this.destroy(sid, () => {});
+          return callback(null, null);
+        }
+        return callback(null, typeof row.data === 'string' ? JSON.parse(row.data) : row.data);
+      })
+      .catch(callback);
   }
 
   set(sid, sessionData, callback) {
-    try {
-      const ttl = sessionData?.cookie?.maxAge ?? 8 * 60 * 60 * 1000;
-      this.db
-        .prepare(
+    const ttl = sessionData?.cookie?.maxAge ?? 8 * 60 * 60 * 1000;
+    getDb()
+      .then((db) =>
+        db.run(
           `INSERT INTO sessions (sid, expires_at, data) VALUES (?, ?, ?)
-           ON CONFLICT(sid) DO UPDATE SET expires_at = excluded.expires_at, data = excluded.data`,
-        )
-        .run(sid, Date.now() + ttl, JSON.stringify(sessionData));
-      return callback(null);
-    } catch (error) {
-      return callback(error);
-    }
+           ON CONFLICT (sid) DO UPDATE SET expires_at = excluded.expires_at, data = excluded.data`,
+          [sid, Date.now() + ttl, JSON.stringify(sessionData)],
+        ),
+      )
+      .then(() => callback(null))
+      .catch(callback);
   }
 
   touch(sid, sessionData, callback) {
@@ -54,11 +56,9 @@ export class SqliteSessionStore extends session.Store {
   }
 
   destroy(sid, callback) {
-    try {
-      this.db.prepare('DELETE FROM sessions WHERE sid = ?').run(sid);
-      return callback(null);
-    } catch (error) {
-      return callback(error);
-    }
+    getDb()
+      .then((db) => db.run('DELETE FROM sessions WHERE sid = ?', [sid]))
+      .then(() => callback(null))
+      .catch(callback);
   }
 }

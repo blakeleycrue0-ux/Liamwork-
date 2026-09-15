@@ -12,16 +12,16 @@ import { getBool } from '../db/repositories/settings.repo.js';
  * (it stores everything without notifying), unless `notify_on_first_check`
  * is enabled in Settings.
  */
-export function detectNewPosts(website, items) {
+export async function detectNewPosts(website, items) {
   const isBaselineRun = !website.baseline_done;
-  const stored = insertNewItems(website.id, items);
+  const stored = await insertNewItems(website.id, items);
 
-  const notifyOnFirst = getBool('notify_on_first_check', false);
+  const notifyOnFirst = await getBool('notify_on_first_check', false);
   const shouldNotify = stored.length > 0 && (!isBaselineRun || notifyOnFirst);
 
   // Baseline items are closed straight away so they can never be picked up as
   // a pending backlog by a later check.
-  if (stored.length && !shouldNotify) markNotified(stored.map((post) => post.id));
+  if (stored.length && !shouldNotify) await markNotified(stored.map((post) => post.id));
 
   return {
     stored,

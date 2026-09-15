@@ -8,14 +8,14 @@ import { Scheduler } from './scheduler/index.js';
 import { closeDb } from './db/index.js';
 import { startOrExit } from './cli/startup.js';
 
-startOrExit(bootstrap);
+await startOrExit(bootstrap);
 
 const scheduler = new Scheduler().start();
 
-const shutdown = (signal) => {
+const shutdown = async (signal) => {
   console.log(`\n[crawler] ${signal} received, shutting down`);
   scheduler.stop();
-  closeDb();
+  await closeDb();
   process.exit(0);
 };
 

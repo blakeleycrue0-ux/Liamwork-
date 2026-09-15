@@ -1,8 +1,10 @@
-import { getDb, nowIso } from '../index.js';
+import { bool, getDb, num, nowIso } from '../index.js';
 
 const parseSelectors = (raw) => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
   try {
-    return raw ? JSON.parse(raw) : {};
+    return JSON.parse(raw);
   } catch {
     return {};
   }
@@ -11,120 +13,120 @@ const parseSelectors = (raw) => {
 export const mapWebsite = (row) =>
   row && {
     ...row,
-    active: Boolean(row.active),
-    baseline_done: Boolean(row.baseline_done),
+    active: bool(row.active),
+    baseline_done: bool(row.baseline_done),
+    check_interval: num(row.check_interval, 60),
+    error_count: num(row.error_count),
+    consecutive_errors: num(row.consecutive_errors),
     selector_config: parseSelectors(row.selector_config),
   };
 
-export function listWebsites({ activeOnly = false } = {}) {
-  const db = getDb();
-  const sql = activeOnly
-    ? 'SELECT * FROM websites WHERE active = 1 ORDER BY name COLLATE NOCASE'
-    : 'SELECT * FROM websites ORDER BY name COLLATE NOCASE';
-  return db.prepare(sql).all().map(mapWebsite);
+export async function listWebsites({ activeOnly = false } = {}) {
+  const db = await getDb();
+  const sql = `SELECT * FROM websites ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY lower(name)`;
+  return (await db.all(sql)).map(mapWebsite);
 }
 
-export function getWebsite(id) {
-  return mapWebsite(getDb().prepare('SELECT * FROM websites WHERE id = ?').get(id));
+export async function getWebsite(id) {
+  const db = await getDb();
+  return mapWebsite(await db.get('SELECT * FROM websites WHERE id = ?', [id]));
 }
 
-export function createWebsite(data) {
-  const db = getDb();
-  const info = db
-    .prepare(
-      `INSERT INTO websites (name, url, active, check_interval, detection_method, selector_config, notes)
-       VALUES (@name, @url, @active, @check_interval, @detection_method, @selector_config, @notes)`,
-    )
-    .run({
-      name: data.name,
-      url: data.url,
-      active: data.active ? 1 : 0,
-      check_interval: data.check_interval,
-      detection_method: data.detection_method,
-      selector_config: JSON.stringify(data.selector_config ?? {}),
-      notes: data.notes ?? null,
-    });
-  return getWebsite(info.lastInsertRowid);
+export async function createWebsite(data) {
+  const db = await getDb();
+  const row = await db.get(
+    `INSERT INTO websites (name, url, active, check_interval, detection_method, selector_config, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [
+      data.name,
+      data.url,
+      data.active ? 1 : 0,
+      data.check_interval,
+      data.detection_method,
+      JSON.stringify(data.selector_config ?? {}),
+      data.notes ?? null,
+    ],
+  );
+  return getWebsite(row.id);
 }
 
-export function updateWebsite(id, data) {
-  const db = getDb();
-  const current = getWebsite(id);
+export async function updateWebsite(id, data) {
+  const db = await getDb();
+  const current = await getWebsite(id);
   if (!current) return null;
-  db.prepare(
+  await db.run(
     `UPDATE websites SET
-       name = @name, url = @url, active = @active, check_interval = @check_interval,
-       detection_method = @detection_method, selector_config = @selector_config,
-       notes = @notes, updated_at = @updated_at
-     WHERE id = @id`,
-  ).run({
-    id,
-    name: data.name ?? current.name,
-    url: data.url ?? current.url,
-    active: (data.active ?? current.active) ? 1 : 0,
-    check_interval: data.check_interval ?? current.check_interval,
-    detection_method: data.detection_method ?? current.detection_method,
-    selector_config: JSON.stringify(data.selector_config ?? current.selector_config ?? {}),
-    notes: data.notes === undefined ? current.notes : data.notes,
-    updated_at: nowIso(),
-  });
+       name = ?, url = ?, active = ?, check_interval = ?, detection_method = ?,
+       selector_config = ?, notes = ?, updated_at = ?
+     WHERE id = ?`,
+    [
+      data.name ?? current.name,
+      data.url ?? current.url,
+      (data.active ?? current.active) ? 1 : 0,
+      data.check_interval ?? current.check_interval,
+      data.detection_method ?? current.detection_method,
+      JSON.stringify(data.selector_config ?? current.selector_config ?? {}),
+      data.notes === undefined ? current.notes : data.notes,
+      nowIso(),
+      id,
+    ],
+  );
   return getWebsite(id);
 }
 
-export function deleteWebsite(id) {
-  return getDb().prepare('DELETE FROM websites WHERE id = ?').run(id).changes > 0;
+export async function deleteWebsite(id) {
+  const db = await getDb();
+  const { changes } = await db.run('DELETE FROM websites WHERE id = ?', [id]);
+  return changes > 0;
 }
 
-export function setActive(id, active) {
-  getDb()
-    .prepare('UPDATE websites SET active = ?, updated_at = ? WHERE id = ?')
-    .run(active ? 1 : 0, nowIso(), id);
+export async function setActive(id, active) {
+  const db = await getDb();
+  await db.run('UPDATE websites SET active = ?, updated_at = ? WHERE id = ?', [
+    active ? 1 : 0,
+    nowIso(),
+    id,
+  ]);
   return getWebsite(id);
 }
 
 /** Marks a successful check; optionally records the newest detected item. */
-export function recordSuccess(id, { newestItem = null, at = nowIso() } = {}) {
-  const db = getDb();
-  db.prepare(
+export async function recordSuccess(id, { newestItem = null, at = nowIso() } = {}) {
+  const db = await getDb();
+  await db.run(
     `UPDATE websites SET
-       last_checked_at = @at, last_success_at = @at, last_error = NULL,
+       last_checked_at = ?, last_success_at = ?, last_error = NULL,
        consecutive_errors = 0, baseline_done = 1,
-       last_new_item_at = COALESCE(@newAt, last_new_item_at),
-       last_new_item_title = COALESCE(@newTitle, last_new_item_title),
-       updated_at = @at
-     WHERE id = @id`,
-  ).run({
-    id,
-    at,
-    newAt: newestItem ? at : null,
-    newTitle: newestItem ? newestItem.title : null,
-  });
+       last_new_item_at = COALESCE(?, last_new_item_at),
+       last_new_item_title = COALESCE(?, last_new_item_title),
+       updated_at = ?
+     WHERE id = ?`,
+    [at, at, newestItem ? at : null, newestItem ? newestItem.title : null, at, id],
+  );
 }
 
-export function recordFailure(id, message, { at = nowIso() } = {}) {
-  getDb()
-    .prepare(
-      `UPDATE websites SET
-         last_checked_at = @at, last_error = @message, last_error_at = @at,
-         error_count = error_count + 1, consecutive_errors = consecutive_errors + 1,
-         updated_at = @at
-       WHERE id = @id`,
-    )
-    .run({ id, at, message: String(message).slice(0, 1000) });
+export async function recordFailure(id, message, { at = nowIso() } = {}) {
+  const db = await getDb();
+  await db.run(
+    `UPDATE websites SET
+       last_checked_at = ?, last_error = ?, last_error_at = ?,
+       error_count = error_count + 1, consecutive_errors = consecutive_errors + 1,
+       updated_at = ?
+     WHERE id = ?`,
+    [at, String(message).slice(0, 1000), at, at, id],
+  );
 }
 
-export function countsByStatus() {
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT
-         COUNT(*)                                            AS total,
-         SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END)         AS active,
-         SUM(CASE WHEN active = 1 AND consecutive_errors > 0 THEN 1 ELSE 0 END) AS failing
-       FROM websites`,
-    )
-    .get();
-  const active = row.active ?? 0;
-  const failing = row.failing ?? 0;
-  return { total: row.total ?? 0, active, failing, ok: active - failing };
+export async function countsByStatus() {
+  const db = await getDb();
+  const row = await db.get(
+    `SELECT
+       COUNT(*)                                            AS total,
+       SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END)         AS active,
+       SUM(CASE WHEN active = 1 AND consecutive_errors > 0 THEN 1 ELSE 0 END) AS failing
+     FROM websites`,
+  );
+  const active = num(row?.active);
+  const failing = num(row?.failing);
+  return { total: num(row?.total), active, failing, ok: active - failing };
 }
