@@ -58,9 +58,13 @@ test('the API is protected until you log in', async () => {
   const anonymous = await call('/api/websites');
   assert.equal(anonymous.status, 401);
 
+  // The dashboard shell is public (it holds no data); the API is what is guarded.
   const page = await fetch(`${base}/`, { redirect: 'manual' });
-  assert.equal(page.status, 302);
-  assert.equal(page.headers.get('location'), '/login');
+  assert.equal(page.status, 200);
+
+  const login = await fetch(`${base}/login`, { redirect: 'manual' });
+  assert.equal(login.status, 301, 'there is no login page any more');
+  assert.equal(login.headers.get('location'), '/');
 
   const wrong = await call('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'nope' } });
   assert.equal(wrong.status, 401);

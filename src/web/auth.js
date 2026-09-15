@@ -1,4 +1,5 @@
-/* Shared authentication helper for the dashboard and the login page. */
+/* Authentication helper. Only does anything when AUTH_PROVIDER is 'supabase';
+   with the default open access there is nothing to sign in to. */
 
 const STORAGE_KEY = 'wm.auth.session';
 let configPromise = null;

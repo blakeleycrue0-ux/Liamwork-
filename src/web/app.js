@@ -41,12 +41,24 @@ async function api(path, { method = 'GET', body } = {}) {
   });
   if (response.status === 401) {
     clearSession();
-    window.location.href = '/login';
+    showBanner('La API ha rechazado la petición (401). Revisa AUTH_PROVIDER en Netlify.');
     throw new Error('No autenticado');
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Error ${response.status}`);
   return data;
+}
+
+/** Persistent notice at the top of the dashboard, for problems that are not
+ *  transient (the API being down, for instance). */
+function showBanner(message) {
+  let banner = document.getElementById('banner');
+  if (!banner) {
+    banner = el('div', { id: 'banner', className: 'banner' });
+    document.querySelector('main.container')?.prepend(banner);
+  }
+  banner.textContent = message;
+  banner.hidden = false;
 }
 
 function toast(message, kind = '') {
@@ -685,16 +697,17 @@ async function init() {
   const { provider } = await authConfig();
   state.provider = provider;
 
-  const me = await fetch('/api/auth/me', { headers: await authHeaders() }).then((response) =>
-    response.ok ? response.json() : null,
-  );
+  const me = await fetch('/api/auth/me', { headers: await authHeaders() })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+
   if (!me) {
-    clearSession();
-    window.location.href = '/login';
-    return;
+    // The API is not answering. Show the dashboard anyway and say what happens:
+    // there is no login page to fall back to, and nothing to log into.
+    showBanner('La API no responde. Abre /api/diagnostics para ver el motivo.');
   }
-  state.csrfToken = me.csrfToken ?? null;
-  state.user = me.user ?? storedUser();
+  state.csrfToken = me?.csrfToken ?? null;
+  state.user = me?.user ?? storedUser();
 
   if (state.provider === 'none') {
     // No hay sesión que cerrar.
@@ -714,7 +727,7 @@ async function init() {
   $('#logout').addEventListener('click', async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
     clearSession();
-    window.location.href = '/login';
+    window.location.reload();
   });
 
   $('#add-website').addEventListener('click', () => websiteModal(null));

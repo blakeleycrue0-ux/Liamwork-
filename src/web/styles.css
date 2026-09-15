@@ -113,6 +113,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #bfdbfe; outline-
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 [hidden] { display: none !important; }
 
+.banner {
+  background: #fef3c7; border: 1px solid #fcd34d; color: #92400e;
+  padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;
+}
+
 /* ---------- Toast ---------- */
 .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
 .toast { background: #111827; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; max-width: 380px; box-shadow: var(--shadow); }

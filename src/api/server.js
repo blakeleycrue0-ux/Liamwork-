@@ -43,12 +43,9 @@ export function createApp() {
 
   app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
-  // Public: login page + login endpoint.
-  app.get('/login', (req, res) => {
-    if (isOpenAccess()) return res.redirect('/');
-    if (!isSupabaseAuth() && req.session?.user) return res.redirect('/');
-    return res.sendFile(path.join(WEB_DIR, 'login.html'));
-  });
+  // There is no login page: /login only exists to catch old links and cached
+  // scripts, and it sends you straight to the dashboard.
+  app.get('/login', (req, res) => res.redirect(301, '/'));
   app.use('/api/auth', authRoutes);
   // Public on purpose: it is the first thing to look at when a deploy misbehaves.
   app.use('/api/diagnostics', diagnosticsRoutes);
@@ -79,16 +76,9 @@ export function createApp() {
   app.use('/api/settings', settingsRoutes);
   app.use('/api/users', userRoutes);
 
-  // The dashboard shell carries no data. With bearer tokens (Supabase) a plain
-  // navigation cannot be authenticated - the token lives in the page, not in a
-  // cookie - so the shell is public and every /api call still requires a token.
-  // This is also how it is served on Netlify, straight from the CDN.
-  const sendDashboard = (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html'));
-  app.get('/', (req, res, next) =>
-    isSupabaseAuth() || isOpenAccess()
-      ? sendDashboard(req, res)
-      : requireAuth(req, res, () => sendDashboard(req, res)),
-  );
+  // The dashboard shell carries no data, so it is always public - exactly how
+  // Netlify serves it, straight from the CDN. Access control lives on /api.
+  app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
   app.use(express.static(WEB_DIR, { index: false }));
 
   app.use('/api', notFound);

@@ -22,10 +22,11 @@
   # import, so the bundler ignores it.)
   external_node_modules = ["better-sqlite3"]
 
+# No login page exists. This catches old links and cached scripts.
 [[redirects]]
   from = "/login"
-  to = "/login.html"
-  status = 200
+  to = "/"
+  status = 301
 
 [[headers]]
   for = "/*"

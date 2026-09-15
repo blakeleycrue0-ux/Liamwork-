@@ -61,9 +61,9 @@ test('writes work without a CSRF token, since there is no session cookie', async
   assert.equal(added.status, 201);
 });
 
-test('the login page sends you to the dashboard instead of asking for a password', async () => {
+test('there is no login page: /login lands on the dashboard', async () => {
   const response = await call('/login');
-  assert.equal(response.status, 302);
+  assert.equal(response.status, 301);
   assert.equal(response.headers.get('location'), '/');
 });
 
