@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Web Monitor · Acceder</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%232563eb'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
       <h1>Web Monitor</h1>
       <p class="muted" style="margin-top:0">Panel de monitorización de webs</p>
       <div class="field">
-        <label for="username">Usuario</label>
+        <label for="username" id="user-label">Usuario</label>
         <input id="username" name="username" type="text" autocomplete="username" required autofocus>
       </div>
       <div class="field">
@@ -21,26 +22,46 @@
       </div>
       <button class="btn-primary" type="submit" style="width:100%">Entrar</button>
       <div class="error-text" id="login-error" hidden></div>
+      <p class="hint" id="provider-hint"></p>
     </form>
   </div>
-  <script>
+  <script type="module">
+    import { authConfig, signIn } from '/auth.js';
+
     const form = document.getElementById('login-form');
     const errorBox = document.getElementById('login-error');
+    const label = document.getElementById('user-label');
+    const hint = document.getElementById('provider-hint');
+
+    const { provider } = await authConfig();
+    if (provider === 'supabase') {
+      label.textContent = 'Email';
+      form.username.type = 'email';
+      form.username.autocomplete = 'email';
+      hint.textContent = 'Acceso gestionado con Supabase Auth.';
+    }
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       errorBox.hidden = true;
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          username: form.username.value,
-          password: form.password.value,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) { window.location.href = '/'; return; }
-      errorBox.textContent = data.error || 'No se pudo iniciar sesión';
-      errorBox.hidden = false;
+      try {
+        if (provider === 'supabase') {
+          await signIn(form.username.value.trim(), form.password.value);
+          window.location.href = '/';
+          return;
+        }
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ username: form.username.value, password: form.password.value }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudo iniciar sesión');
+        window.location.href = '/';
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.hidden = false;
+      }
     });
   </script>
 </body>

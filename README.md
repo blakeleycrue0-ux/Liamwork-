@@ -397,3 +397,67 @@ Funciona con el `Dockerfile` tal cual, con dos avisos importantes:
 3. *Webs → FFSP → Comprobar*: valida que el listado se detecta; si no, ajusta los
    selectores desde el formulario.
 4. Vigila *Resumen → Errores recientes* durante el primer día.
+
+---
+
+## 11. Supabase: usuarios reales y base de datos gestionada
+
+Por defecto el dashboard tiene **un solo administrador** (usuario + contraseña
+en variables de entorno). Con Supabase puedes tener **varias personas, cada una
+con su email y su contraseña**, sin tocar el código.
+
+Conviene no confundir dos conceptos que el dashboard mantiene separados:
+
+| | Quién | Dónde se gestiona |
+|---|---|---|
+| **Usuarios** | Quien **entra al dashboard** | Sección *Usuarios* (Supabase Auth) |
+| **Trabajadores** | Quien **recibe los emails** de aviso | Sección *Trabajadores* (base de datos) |
+
+Una persona puede ser las dos cosas, o solo una.
+
+### Qué aporta
+
+- Alta y baja de personas desde el dashboard, o desde el panel de Supabase.
+- Contraseñas gestionadas por Supabase (hash, políticas, recuperación por email,
+  MFA si la activas): no hay criptografía casera.
+- El navegador recibe un **JWT**, no una cookie de sesión. En serverless esto es
+  mejor: no hace falta tabla de sesiones ni protección CSRF, porque la
+  credencial viaja en una cabecera y no la envía el navegador sola.
+- La misma cuenta de Supabase te da el **Postgres** de la aplicación.
+
+### Configuración
+
+1. Crea un proyecto en [supabase.com](https://supabase.com).
+2. En *Project settings → API* copia la URL y las claves; en
+   *Project settings → Database* copia la cadena de conexión.
+3. Añade estas variables (en `.env` o en Netlify):
+
+```env
+AUTH_PROVIDER=supabase
+SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOi...             # pública, la usa el navegador
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...     # SECRETA, habilita la sección Usuarios
+DATABASE_URL=postgresql://postgres:PASSWORD@db.xxxxxxxx.supabase.co:5432/postgres
+```
+
+4. Aplica el esquema una sola vez:
+
+```bash
+npm run migrate:pg
+```
+
+5. Crea la primera persona en *Authentication → Users → Add user* (marca
+   "Auto confirm user"). A partir de ahí, las siguientes se dan de alta desde la
+   sección **Usuarios** del dashboard.
+
+`SUPABASE_SERVICE_ROLE_KEY` es una clave de administrador: va **solo** en el
+servidor. El código nunca la envía al navegador; la sección *Usuarios* la usa a
+través de la API. Sin ella todo funciona igual, pero esa sección responde 501 y
+las altas se hacen desde el panel de Supabase.
+
+### Qué NO cambia
+
+El crawler, la detección de novedades, los emails y el resto del dashboard son
+idénticos: Supabase solo sustituye el login y, si quieres, el motor de base de
+datos. Sin `AUTH_PROVIDER=supabase` el proyecto sigue arrancando con SQLite y el
+administrador único, que es lo cómodo en local.

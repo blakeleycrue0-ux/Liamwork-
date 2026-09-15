@@ -39,12 +39,25 @@ export const config = {
   },
 
   auth: {
+    // 'local'    -> single admin from ADMIN_USERNAME/ADMIN_PASSWORD_HASH
+    // 'supabase' -> real users managed by Supabase Auth (email + password)
+    provider: (process.env.AUTH_PROVIDER || (process.env.SUPABASE_URL ? 'supabase' : 'local')).toLowerCase(),
     username: process.env.ADMIN_USERNAME || 'admin',
     passwordHash: process.env.ADMIN_PASSWORD_HASH || '',
     password: process.env.ADMIN_PASSWORD || '',
     sessionSecret: process.env.SESSION_SECRET || '',
     sessionTtl: int(process.env.SESSION_TTL, 8 * 60 * 60),
     secureCookies: bool(process.env.SECURE_COOKIES, false),
+  },
+
+  supabase: {
+    url: (process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
+    anonKey: process.env.SUPABASE_ANON_KEY || '',
+    // Server-only: lets the dashboard list, invite and remove users.
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    // Legacy projects sign tokens with HS256 and this shared secret; newer
+    // ones use asymmetric keys and are verified through JWKS.
+    jwtSecret: process.env.SUPABASE_JWT_SECRET || '',
   },
 
   crawler: {
@@ -80,10 +93,14 @@ export const config = {
 /** Fatal configuration problems (only enforced in production). */
 export function validateConfig({ strict = config.isProduction } = {}) {
   const problems = [];
-  if (!config.auth.sessionSecret || config.auth.sessionSecret.length < 16) {
+  // Sessions are only used by the local provider; Supabase uses bearer tokens.
+  if (config.auth.provider !== 'supabase' && (!config.auth.sessionSecret || config.auth.sessionSecret.length < 16)) {
     problems.push('SESSION_SECRET is missing or too short (min. 16 characters).');
   }
-  if (!config.auth.passwordHash && !config.auth.password) {
+  if (config.auth.provider === 'supabase') {
+    if (!config.supabase.url) problems.push('AUTH_PROVIDER=supabase requires SUPABASE_URL.');
+    if (!config.supabase.anonKey) problems.push('AUTH_PROVIDER=supabase requires SUPABASE_ANON_KEY.');
+  } else if (!config.auth.passwordHash && !config.auth.password) {
     problems.push('Set ADMIN_PASSWORD_HASH (recommended) or ADMIN_PASSWORD.');
   }
   if (config.mail.transport === 'smtp' && !config.mail.smtp.host) {

@@ -1,6 +1,16 @@
 /* Web Monitor dashboard - vanilla ES modules, no build step. */
+import { accessToken, authConfig, clearSession, storedUser } from '/auth.js';
 
-const state = { csrfToken: null, websites: [], workers: [], settings: {}, page: 'summary' };
+const state = {
+  csrfToken: null,
+  provider: 'local',
+  user: null,
+  websites: [],
+  workers: [],
+  users: [],
+  settings: {},
+  page: 'summary',
+};
 
 /* ---------------------------------------------------------------- helpers */
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -12,16 +22,25 @@ const el = (tag, props = {}, children = []) => {
   return node;
 };
 
+async function authHeaders() {
+  if (state.provider !== 'supabase') {
+    return state.csrfToken ? { 'x-csrf-token': state.csrfToken } : {};
+  }
+  const token = await accessToken();
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
 async function api(path, { method = 'GET', body } = {}) {
   const response = await fetch(`/api${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
-      ...(state.csrfToken ? { 'x-csrf-token': state.csrfToken } : {}),
+      ...(await authHeaders()),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (response.status === 401) {
+    clearSession();
     window.location.href = '/login';
     throw new Error('No autenticado');
   }
@@ -556,6 +575,85 @@ async function loadActivity() {
   );
 }
 
+/* -------------------------------------------------------------- users tab */
+/** Dashboard users (Supabase Auth). Different from workers, who only receive
+ *  the alert emails. */
+function userModal() {
+  openModal({
+    title: 'Añadir usuario',
+    fields: [
+      { name: 'email', label: 'Email', type: 'email', required: true },
+      { name: 'password', label: 'Contraseña', type: 'password', required: true, hint: 'Mínimo 8 caracteres.' },
+    ],
+    submitLabel: 'Crear usuario',
+    onSubmit: async (values) => {
+      await api('/users', { method: 'POST', body: { email: values.email, password: values.password } });
+      toast('Usuario creado', 'ok');
+      await loadUsers();
+    },
+  });
+}
+
+function passwordModal(user) {
+  openModal({
+    title: `Cambiar contraseña · ${user.email}`,
+    fields: [
+      { name: 'password', label: 'Nueva contraseña', type: 'password', required: true, hint: 'Mínimo 8 caracteres.' },
+    ],
+    submitLabel: 'Guardar',
+    onSubmit: async (values) => {
+      await api(`/users/${user.id}/password`, { method: 'PUT', body: { password: values.password } });
+      toast('Contraseña actualizada', 'ok');
+    },
+  });
+}
+
+async function loadUsers() {
+  const { users } = await api('/users');
+  state.users = users;
+  const body = $('#users-body');
+
+  if (!users.length) {
+    body.replaceChildren(
+      el('tr', {}, [el('td', { colSpan: 4, className: 'empty', textContent: 'No hay usuarios.' })]),
+    );
+    return;
+  }
+
+  body.replaceChildren(
+    ...users.map((user) => {
+      const actions = el('td', { className: 'actions' });
+
+      const passwordBtn = el('button', { className: 'btn-sm', textContent: 'Contraseña' });
+      passwordBtn.addEventListener('click', () => passwordModal(user));
+
+      const deleteBtn = el('button', { className: 'btn-sm btn-danger', textContent: 'Eliminar' });
+      deleteBtn.disabled = user.id === state.user?.id;
+      deleteBtn.addEventListener('click', async () => {
+        if (!confirmDialog(`¿Eliminar el acceso de ${user.email}?`)) return;
+        try {
+          await api(`/users/${user.id}`, { method: 'DELETE' });
+          toast('Usuario eliminado', 'ok');
+          await loadUsers();
+        } catch (error) {
+          toast(error.message, 'err');
+        }
+      });
+      actions.append(passwordBtn, ' ', deleteBtn);
+
+      return el('tr', {}, [
+        el('td', { style: 'font-weight:600' }, [
+          user.email,
+          user.id === state.user?.id ? el('span', { className: 'hint', textContent: ' (tú)' }) : '',
+        ]),
+        el('td', { className: 'muted', textContent: fmtDateTime(user.created_at) }),
+        el('td', { className: 'muted', textContent: user.last_sign_in_at ? fmtAgo(user.last_sign_in_at) : 'nunca' }),
+        actions,
+      ]);
+    }),
+  );
+}
+
 /* ----------------------------------------------------------- settings tab */
 async function loadSettings() {
   const { settings } = await api('/settings');
@@ -580,24 +678,43 @@ function showPage(page) {
   if (page === 'workers') loadWorkers().catch((error) => toast(error.message, 'err'));
   if (page === 'activity') loadActivity().catch((error) => toast(error.message, 'err'));
   if (page === 'settings') loadSettings().catch((error) => toast(error.message, 'err'));
+  if (page === 'users') loadUsers().catch((error) => toast(error.message, 'err'));
 }
 
 async function init() {
-  const me = await fetch('/api/auth/me').then((response) => (response.ok ? response.json() : null));
-  if (!me) { window.location.href = '/login'; return; }
-  state.csrfToken = me.csrfToken;
+  const { provider } = await authConfig();
+  state.provider = provider;
+
+  const me = await fetch('/api/auth/me', { headers: await authHeaders() }).then((response) =>
+    response.ok ? response.json() : null,
+  );
+  if (!me) {
+    clearSession();
+    window.location.href = '/login';
+    return;
+  }
+  state.csrfToken = me.csrfToken ?? null;
+  state.user = me.user ?? storedUser();
+
+  if (state.provider === 'supabase') {
+    document.getElementById('tab-users').hidden = false;
+    const label = document.getElementById('current-user');
+    if (label && state.user?.email) label.textContent = state.user.email;
+  }
 
   document.getElementById('tabs').addEventListener('click', (event) => {
     if (event.target.dataset.page) showPage(event.target.dataset.page);
   });
 
   $('#logout').addEventListener('click', async () => {
-    await api('/auth/logout', { method: 'POST' });
+    await api('/auth/logout', { method: 'POST' }).catch(() => {});
+    clearSession();
     window.location.href = '/login';
   });
 
   $('#add-website').addEventListener('click', () => websiteModal(null));
   $('#add-worker').addEventListener('click', () => workerModal(null));
+  $('#add-user').addEventListener('click', () => userModal());
   $('#activity-filter').addEventListener('change', () => loadActivity());
 
   $('#run-now').addEventListener('click', async (event) => {

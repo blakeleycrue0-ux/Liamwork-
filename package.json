@@ -10,7 +10,8 @@
     "seed": "node src/cli/seed.js",
     "check": "node src/cli/check-once.js",
     "hash-password": "node src/cli/hash-password.js",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "migrate:pg": "node src/cli/migrate-postgres.js"
   },
   "repository": {
     "type": "git",
@@ -37,6 +38,7 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "fast-xml-parser": "^5.11.1",
+    "jose": "^6.2.12",
     "nodemailer": "^10.0.10",
     "pg": "^8.23.0",
     "serverless-http": "^4.0.0"

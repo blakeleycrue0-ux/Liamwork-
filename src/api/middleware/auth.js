@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import { config } from '../../config/index.js';
 import { hashPassword, verifyPassword } from '../password.js';
+import { bearerToken, verifyAccessToken } from '../auth/supabase.js';
+
+export const isSupabaseAuth = () => config.auth.provider === 'supabase';
 
 let cachedHash = null;
 
@@ -56,16 +59,40 @@ export async function checkCredentials(username, password) {
   return userOk && passOk;
 }
 
-/** Guards the API: JSON 401 for XHR, redirect for page requests. */
-export function requireAuth(req, res, next) {
-  if (req.session?.user) return next();
+/**
+ * Guards the API. With Supabase the credential is a bearer token verified on
+ * every request; with the local provider it is the signed session cookie.
+ * JSON 401 for API calls, redirect to the login page for page requests.
+ */
+export async function requireAuth(req, res, next) {
   // originalUrl, because this middleware is mounted under /api.
-  if (req.originalUrl.startsWith('/api/')) return res.status(401).json({ error: 'No autenticado' });
-  return res.redirect('/login');
+  const isApi = req.originalUrl.startsWith('/api/');
+
+  if (isSupabaseAuth()) {
+    const user = await verifyAccessToken(bearerToken(req));
+    if (!user) {
+      return isApi
+        ? res.status(401).json({ error: 'No autenticado' })
+        : res.redirect('/login');
+    }
+    req.user = user;
+    return next();
+  }
+
+  if (req.session?.user) {
+    req.user = req.session.user;
+    return next();
+  }
+  return isApi ? res.status(401).json({ error: 'No autenticado' }) : res.redirect('/login');
 }
 
-/** Double-submit CSRF token for state-changing requests. */
+/**
+ * Double-submit CSRF token for state-changing requests.
+ * Not needed with Supabase: the credential travels in a header, never as an
+ * ambient cookie, so another origin cannot make the browser send it.
+ */
 export function csrfProtection(req, res, next) {
+  if (isSupabaseAuth()) return next();
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const token = req.get('x-csrf-token');
   if (!req.session?.csrfToken || token !== req.session.csrfToken) {
