@@ -448,8 +448,9 @@ async function loadWebsites() {
           if (result.ok) {
             toast(
               `${website.name}: ${result.itemsFound} item(s), ${result.newItems} nuevo(s)` +
-                (result.notified ? ' · email enviado' : result.baseline ? ' · línea base' : ''),
-              'ok',
+                (result.notified ? ' · email enviado' : result.baseline ? ' · línea base' : '') +
+                (result.note ? ` · ${result.note}` : ''),
+              result.itemsFound ? 'ok' : '',
             );
           } else {
             toast(`${website.name}: ${result.error}`, 'err');

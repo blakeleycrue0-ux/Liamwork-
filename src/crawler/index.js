@@ -34,7 +34,7 @@ async function tryAiRecovery(website) {
   }
 
   const result = await detectWithAi(website);
-  if (!result.items.length) return { items: [], usedAi: true };
+  if (!result.items.length) return { items: [], usedAi: true, notes: `IA: ${result.notes}` };
 
   // Keep what it learned, so the next checks need no model at all.
   const selectors = Object.fromEntries(
@@ -87,15 +87,27 @@ export async function checkWebsite(websiteOrId, { force = false } = {}) {
 
     // Nothing found: let the AI re-learn this site, at most once every few hours.
     let recovery = null;
+    let recoveryNote = null;
     if (!fetched.items.length) {
       recovery = await tryAiRecovery(website).catch((error) => {
+        recoveryNote = `IA: ${error.message}`;
         console.error(`[crawler] AI recovery failed for "${website.name}": ${error.message}`);
         return null;
       });
       if (recovery?.items.length) {
         fetched = { ...fetched, items: recovery.items, resolvedMethod: 'ai-recovery' };
+        recoveryNote = `IA: aprendidos selectores nuevos (${recovery.items.length} publicaciones)`;
       } else if (recovery) {
         fetched = { ...fetched, resolvedMethod: 'ai-recovery' };
+        recoveryNote =
+          recovery.notes ||
+          'IA: esta página no contiene un listado legible (puede cargarse con JavaScript)';
+      } else if (!recoveryNote) {
+        // No recovery was attempted: say which gate stopped it, so "0 items"
+        // is never a dead end for whoever is looking at the dashboard.
+        recoveryNote = aiConfigured()
+          ? 'Sin publicaciones. La IA no reintenta todavía (espera entre intentos).'
+          : 'Sin publicaciones. Configura ANTHROPIC_API_KEY para que la IA lo resuelva sola.';
       }
     }
 
@@ -121,7 +133,8 @@ export async function checkWebsite(websiteOrId, { force = false } = {}) {
       itemsFound: fetched.items.length,
       method: fetched.resolvedMethod,
       durationMs: Date.now() - startedAt,
-      errorMessage: notification.reason === 'mail-error' ? `email: ${notification.error}` : null,
+      errorMessage:
+        notification.reason === 'mail-error' ? `email: ${notification.error}` : recoveryNote,
     });
 
     return {
@@ -133,6 +146,7 @@ export async function checkWebsite(websiteOrId, { force = false } = {}) {
       itemsFound: fetched.items.length,
       newItems: detection.newCount,
       baseline: detection.baseline,
+      note: recoveryNote,
       notified: notification.sent,
       notification,
       durationMs: Date.now() - startedAt,

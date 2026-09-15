@@ -76,4 +76,9 @@ test('with no key configured, a website that finds nothing is not retried with t
   assert.equal(result.ok, true);
   assert.equal(result.itemsFound, 0);
   assert.equal(await logs.lastAiAttemptAt(website.id), null, 'no AI attempt was recorded');
+
+  // "0 publicaciones" must never be a dead end: the log says what to do next.
+  assert.match(result.note, /ANTHROPIC_API_KEY/);
+  const [entry] = await logs.listLogs({ websiteId: website.id, limit: 1 });
+  assert.match(entry.error_message, /ANTHROPIC_API_KEY/);
 });
