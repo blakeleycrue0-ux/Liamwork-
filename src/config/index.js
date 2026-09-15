@@ -3,8 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { publicConfig } from './public.config.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const ROOT_DIR = path.resolve(__dirname, '..', '..');
+// NOT named __dirname: bundlers for serverless (Netlify) inject their own
+// __dirname, and two declarations in the same scope are a SyntaxError that
+// stops the whole function from loading.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+export const ROOT_DIR = path.resolve(moduleDir, '..', '..');
 
 const bool = (value, fallback = false) => {
   if (value === undefined || value === '') return fallback;

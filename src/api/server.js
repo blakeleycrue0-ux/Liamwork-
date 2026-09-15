@@ -15,8 +15,11 @@ import { statusRoutes } from './routes/status.routes.js';
 import { logRoutes, postRoutes, settingsRoutes } from './routes/misc.routes.js';
 import { userRoutes } from './routes/users.routes.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const WEB_DIR = path.resolve(__dirname, '..', 'web');
+// NOT named __dirname: bundlers for serverless (Netlify) inject their own
+// __dirname, and two declarations in the same scope are a SyntaxError that
+// stops the whole function from loading.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const WEB_DIR = path.resolve(moduleDir, '..', 'web');
 
 export function createApp() {
   const app = express();

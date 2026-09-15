@@ -5,8 +5,11 @@ import { config } from '../config/index.js';
 import { getDb } from './index.js';
 import { POSTGRES_SCHEMA, POSTGRES_SCHEMA_NAME } from './schema.postgres.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+// NOT named __dirname: bundlers for serverless (Netlify) inject their own
+// __dirname, and two declarations in the same scope are a SyntaxError that
+// stops the whole function from loading.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const MIGRATIONS_DIR = path.join(moduleDir, 'migrations');
 
 /**
  * Postgres: the schema is normally applied by the platform (Netlify DB) or by
