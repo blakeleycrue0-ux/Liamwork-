@@ -1,11 +1,11 @@
 /**
- * Applies the Postgres schema to any Postgres database (Supabase, Neon, RDS…).
+ * Applies the Postgres schema to the Supabase database.
  *
  *   DATABASE_URL=postgresql://... npm run migrate:pg
  *
- * On Netlify this is not needed: the platform applies the same schema from
- * netlify/database/migrations/ before publishing a deploy, and the app checks
- * it again on start-up.
+ * Normally unnecessary: the app applies the same statements itself on the
+ * first boot if the tables are missing. This is here for when you would
+ * rather do it up front, or check what would run.
  */
 import pg from 'pg';
 import { config } from '../config/index.js';
@@ -13,7 +13,10 @@ import { POSTGRES_SCHEMA, POSTGRES_SCHEMA_NAME } from '../db/schema.postgres.js'
 
 const connectionString = config.db.connectionString;
 if (!connectionString) {
-  console.error('Falta DATABASE_URL (o NETLIFY_DATABASE_URL) en el entorno.');
+  console.error(
+    'Falta DATABASE_URL. Cógela en Supabase: Project Settings -> Database -> ' +
+      'Connection string -> Transaction pooler.',
+  );
   process.exit(1);
 }
 

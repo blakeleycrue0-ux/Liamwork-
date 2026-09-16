@@ -7,9 +7,21 @@ import { POSTGRES_SCHEMA, POSTGRES_SCHEMA_NAME } from '../src/db/schema.postgres
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('the Netlify migration file and the embedded schema are identical', () => {
-  const file = path.join(ROOT, 'netlify', 'database', 'migrations', POSTGRES_SCHEMA_NAME, 'migration.sql');
-  assert.equal(fs.readFileSync(file, 'utf8'), POSTGRES_SCHEMA);
+test('nothing depends on Netlify DB any more', () => {
+  // The database is Supabase, reached through DATABASE_URL. Netlify's own
+  // database extension used to provision one automatically, and that is
+  // exactly what leaving these behind would silently bring back.
+  assert.ok(!fs.existsSync(path.join(ROOT, 'netlify', 'database')), 'no Netlify DB migrations');
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(!pkg.dependencies['@netlify/database'], 'no @netlify/database dependency');
+
+  const sources = ['src/config/index.js', 'src/db/drivers/postgres.driver.js'];
+  for (const file of sources) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.ok(!body.includes('NETLIFY_DATABASE_URL'), `${file} reads DATABASE_URL only`);
+    assert.ok(!body.includes('@netlify/database'), `${file} does not import Netlify DB`);
+  }
+  assert.equal(POSTGRES_SCHEMA_NAME, '001_init');
 });
 
 test('the Postgres and SQLite schemas declare the same tables', () => {

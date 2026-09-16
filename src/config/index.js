@@ -31,12 +31,10 @@ export const config = {
   },
 
   db: {
-    // 'sqlite' for local development, 'postgres' when running on Netlify
-    // (or anywhere DATABASE_URL / NETLIFY_DATABASE_URL is provided).
+    // 'sqlite' for local development, 'postgres' (Supabase) everywhere else.
     driver:
       (process.env.DB_DRIVER || '').toLowerCase() ||
-      (process.env.NETLIFY_DATABASE_URL ||
-      process.env.DATABASE_URL ||
+      (process.env.DATABASE_URL ||
       process.env.NETLIFY ||
       // Inside a serverless function NETLIFY is not set, but the Lambda
       // runtime always exposes these. SQLite is never an option there: the
@@ -46,8 +44,8 @@ export const config = {
         ? 'postgres'
         : 'sqlite'),
     file: path.resolve(ROOT_DIR, process.env.DATABASE_FILE || './data/web-monitor.sqlite'),
-    connectionString:
-      process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL || '',
+    // Supabase: Project Settings -> Database -> Connection string.
+    connectionString: process.env.DATABASE_URL || '',
   },
 
   auth: {

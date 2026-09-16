@@ -32,7 +32,6 @@
   "homepage": "https://github.com/blakeleycrue0-ux/Liamwork-#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
-    "@netlify/database": "^2.0.1",
     "better-sqlite3": "^13.0.3",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",

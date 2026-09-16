@@ -12,10 +12,10 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(moduleDir, 'migrations');
 
 /**
- * Postgres: the schema is normally applied by the platform (Netlify DB) or by
- * `npm run migrate:pg`. This runs the same statements as a safety net, so a
- * database that was never migrated still comes up with its tables instead of
- * failing every request. Everything is idempotent.
+ * Postgres (Supabase): applies the schema when the tables are not there yet,
+ * so a fresh database comes up working instead of failing every request.
+ * Everything is idempotent, so a boot against an already-migrated database
+ * costs two cheap queries and does nothing.
  */
 async function runPostgresMigrations({ log }) {
   const db = await getDb();
@@ -48,8 +48,8 @@ async function runPostgresMigrations({ log }) {
  * Applies every .sql file in migrations/ exactly once, in name order.
  * Safe to call at every boot.
  *
- * Only used by the SQLite (local) setup: on Netlify the platform applies the
- * migrations in netlify/database/migrations/ before publishing a deploy.
+ * Only used by the SQLite (local) setup. On Postgres (Supabase) the schema is
+ * a single idempotent block, applied by runPostgresMigrations above.
  */
 export async function runMigrations({ log = console.log } = {}) {
   if (config.db.driver !== 'sqlite') return runPostgresMigrations({ log });

@@ -1,5 +1,5 @@
 /**
- * Postgres driver (Netlify DB / Neon, or any Postgres via DATABASE_URL).
+ * Postgres driver. The database is Supabase, reached through DATABASE_URL.
  *
  * Repositories write SQL with `?` placeholders; they are translated to $1..$n
  * here so a single set of queries serves both dialects.
@@ -10,25 +10,32 @@ const toPgPlaceholders = (sql) => {
 };
 
 export async function createPostgresDriver({ connectionString }) {
-  let pool;
-  if (connectionString) {
-    const pg = await import('pg');
-    pool = new pg.default.Pool({
-      connectionString,
-      ssl: /localhost|127\.0\.0\.1/.test(connectionString) ? false : { rejectUnauthorized: false },
-      max: 5,
-      // Serverless has a hard request budget: a database that does not answer
-      // must fail quickly instead of hanging until the platform times out.
-      connectionTimeoutMillis: 6000,
-      idleTimeoutMillis: 10_000,
-      query_timeout: 8000,
-      statement_timeout: 8000,
-    });
-  } else {
-    // On Netlify the connection string is provisioned automatically.
-    const { getDatabase } = await import('@netlify/database');
-    pool = getDatabase().pool;
+  if (!connectionString) {
+    throw new Error(
+      'Falta DATABASE_URL. Es la cadena de conexión de Supabase ' +
+        '(Project Settings -> Database -> Connection string -> Transaction pooler).',
+    );
   }
+
+  const pg = await import('pg');
+  const pool = new pg.default.Pool({
+    connectionString,
+    // Supabase terminates TLS at the pooler with its own certificate chain;
+    // the connection is encrypted, the chain is simply not one we pin.
+    ssl: /localhost|127\.0\.0\.1/.test(connectionString) ? false : { rejectUnauthorized: false },
+    // The transaction pooler hands out a connection per statement, so a small
+    // pool is the right size here and keeps well inside Supabase's limits.
+    max: 5,
+    // Serverless has a hard request budget: a database that does not answer
+    // must fail quickly instead of hanging until the platform times out.
+    connectionTimeoutMillis: 6000,
+    idleTimeoutMillis: 10_000,
+    query_timeout: 8000,
+    statement_timeout: 8000,
+  });
+
+  // A pool that throws on an idle client would take the whole process with it.
+  pool.on('error', (error) => console.error('[db] idle client error:', error.message));
 
   const query = async (client, sql, params) => client.query(toPgPlaceholders(sql), params);
 

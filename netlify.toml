@@ -2,9 +2,9 @@
 #
 #   - the dashboard (HTML/CSS/JS) is served statically from src/web
 #   - the Express API runs as one serverless function (netlify/functions/api.mts)
-#   - the crawler runs as a scheduled function, every minute
-#   - data lives in Netlify DB (Postgres); migrations in
-#     netlify/database/migrations are applied automatically on deploy
+#   - the crawler runs as a scheduled function, twice a day
+#   - data lives in Supabase (Postgres), reached through DATABASE_URL; the
+#     schema is applied by the app itself on the first boot
 [build]
   publish = "src/web"
   # No build step: the dashboard is plain HTML/CSS/JS and Netlify installs the

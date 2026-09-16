@@ -1,16 +1,16 @@
 /**
- * Postgres schema, shared by three consumers:
- *   - Netlify DB, through netlify/database/migrations/001_init/migration.sql
- *   - `npm run migrate:pg` (Supabase or any other Postgres)
+ * Postgres schema for Supabase, shared by two consumers:
+ *   - `npm run migrate:pg`, to apply it by hand
  *   - the runtime guard in src/db/migrate.js, so a fresh database is never
  *     left without tables
  *
- * The .sql file and this constant must stay identical; a test checks it.
- * Every statement is idempotent, so applying it twice is harmless.
+ * It must declare the same tables as src/db/migrations/001_init.sql (the
+ * SQLite side); a test checks it. Every statement is idempotent, so applying
+ * it twice is harmless.
  */
 export const POSTGRES_SCHEMA_NAME = '001_init';
 
-export const POSTGRES_SCHEMA = String.raw`-- Web Monitor schema for Netlify DB (Postgres).
+export const POSTGRES_SCHEMA = String.raw`-- Web Monitor schema for Supabase (Postgres).
 -- Mirrors src/db/migrations/001_init.sql; timestamps stay TEXT (ISO-8601 UTC)
 -- and booleans stay 0/1 SMALLINT so a single set of queries serves both dialects.
 

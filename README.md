@@ -374,28 +374,31 @@ despliegue usa las piezas equivalentes de la plataforma:
 |---|---|
 | Dashboard (`src/web`) | Ficheros estáticos servidos por la CDN |
 | API Express (`src/api`) | Una función serverless: `netlify/functions/api.mts` |
-| Scheduler + crawler | Función programada cada minuto: `netlify/functions/crawl-scheduled.mts` |
-| SQLite | **Netlify DB** (Postgres sobre Neon), aprovisionada automáticamente |
-| Migraciones | `netlify/database/migrations/`, aplicadas por la plataforma en cada deploy |
+| Scheduler + crawler | Función programada dos veces al día: `netlify/functions/crawl-scheduled.mts` |
+| SQLite | **Supabase** (Postgres), a través de `DATABASE_URL` |
+| Migraciones | El propio arranque aplica el esquema si las tablas no existen |
 
-La base de datos no necesita configuración: basta con la extensión **Neon**
-instalada en el proyecto y el paquete `@netlify/database` (ya es dependencia).
-En el primer despliegue Netlify crea la base de datos e inyecta su cadena de
-conexión en las funciones; el esquema se aplica solo al arrancar. Si prefieres
-usar otro Postgres (Supabase, por ejemplo), define `DATABASE_URL` y tendrá
-prioridad.
+La base de datos es Supabase y se configura con **una sola variable**:
+`DATABASE_URL`, la cadena de conexión que da Supabase en *Project Settings →
+Database → Connection string → Transaction pooler*. Netlify DB (Neon) ya no se
+usa: ni la extensión, ni `@netlify/database`, ni
+`netlify/database/migrations/`.
+
+El esquema se aplica solo. En el primer arranque, si las tablas no están, la
+aplicación ejecuta `src/db/schema.postgres.js` entero -todo es idempotente, así
+que volver a arrancar no rompe nada- y lo anota en `schema_migrations`. También
+puede aplicarse a mano con `DATABASE_URL=... npm run migrate:pg`.
 
 El código de la aplicación es el mismo: la capa de base de datos tiene dos
 drivers (`src/db/drivers/`) y las consultas se escriben una sola vez.
 En local sigue usándose SQLite; en Netlify se usa Postgres automáticamente
-(`DB_DRIVER` lo detecta por la variable `NETLIFY`).
+(`DB_DRIVER` lo detecta por `DATABASE_URL` o por el entorno Lambda).
 
 Dos formas de publicar:
 
 **1. Conectando el repositorio (recomendado)** — en
 *Project configuration → Build & deploy → Link repository*, elige este
-repositorio y la rama. Netlify compila, aplica las migraciones y aprovisiona la
-base de datos en cada despliegue.
+repositorio y la rama. A partir de ahí cada push despliega solo.
 
 **2. Desde tu máquina:**
 
