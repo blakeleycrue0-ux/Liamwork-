@@ -217,6 +217,13 @@ las describen. Esos selectores se escriben en el formulario, así que a partir d
 guardarlos las comprobaciones vuelven a ser scraping normal: sin tokens, sin
 latencia y sin coste por minuto.
 
+### Importar muchas webs de golpe
+
+En *Webs → Importar lista* se pega la lista tal cual, con el nombre del sitio y
+su dirección (en dos líneas o en la misma), y se crean todas de una vez. Las
+direcciones repetidas se ignoran, y una línea ilegible se reporta sin tumbar el
+resto de la importación.
+
 ### Reparación automática
 
 Además del botón, el crawler se repara solo: cuando una web que antes daba

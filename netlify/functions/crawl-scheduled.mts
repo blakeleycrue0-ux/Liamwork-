@@ -1,79 +1,48 @@
 import type { Config } from '@netlify/functions';
 
-// Serverless has no writable disk: Postgres, never SQLite. Set before the
-// application modules are imported, because the configuration reads it on load.
 process.env.DB_DRIVER ||= 'postgres';
 
 /**
- * The scheduler on Netlify: there is no long-running process, so this runs
- * every minute and does exactly what one tick of src/scheduler does.
+ * Twice a day, hand the work to the background function, which has fifteen
+ * minutes instead of thirty seconds. Handing off takes milliseconds, so the
+ * schedule never risks a timeout no matter how many websites are watched.
  *
- * Scheduled functions have a 30-second budget, so the batch is capped; websites
- * are checked least-recently-first, which means a capped run rolls over to the
- * next minute instead of starving anyone.
- *
- * Everything is imported lazily inside the handler so a load failure is logged
- * with its real reason instead of killing the invocation silently.
+ * If the hand-off fails, the crawl runs here instead, capped to what fits in
+ * the budget: fewer websites checked beats none.
  */
-const MAX_WEBSITES_PER_RUN = 25;
+export default async () => {
+  const base = process.env.URL || process.env.DEPLOY_PRIME_URL;
 
-export default async (req: Request) => {
-  const startedAt = Date.now();
-
-  let nextRun: string | null = null;
-  try {
-    const body = (await req.json()) as { next_run?: string };
-    nextRun = body?.next_run ?? null;
-  } catch {
-    nextRun = null;
-  }
-
-  try {
-    const [bootstrap, crawler, settings, state] = await Promise.all([
-      import('../../src/bootstrap.js'),
-      import('../../src/crawler/index.js'),
-      import('../../src/db/repositories/settings.repo.js'),
-      import('../../src/db/repositories/crawlerState.repo.js'),
-    ]);
-
-    await bootstrap.ensureReady({ log: console.log });
-
-    if (!(await settings.getBool('crawler_enabled', true))) {
-      await state.updateState({ status: 'paused', last_heartbeat_at: new Date().toISOString() });
-      console.log('[crawl] disabled from the dashboard, skipping');
+  if (base) {
+    try {
+      const response = await fetch(`${base}/.netlify/functions/crawl-background`, { method: 'POST' });
+      console.log(`[crawl] handed off to the background function (${response.status})`);
       return;
+    } catch (error) {
+      console.error(`[crawl] hand-off failed, running inline: ${(error as Error).message}`);
     }
-
-    await state.updateState({ status: 'running', last_heartbeat_at: new Date().toISOString() });
-
-    const outcome = await crawler.runDueChecks({
-      concurrency: await settings.getInt('crawler_concurrency', 8),
-      limitWebsites: MAX_WEBSITES_PER_RUN,
-    });
-
-    await state.updateState({
-      status: 'idle',
-      last_run_at: new Date().toISOString(),
-      last_run_duration_ms: Date.now() - startedAt,
-      last_heartbeat_at: new Date().toISOString(),
-      next_run_at: nextRun ?? new Date(Date.now() + 60_000).toISOString(),
-    });
-
-    console.log(
-      `[crawl] ${outcome.checked} website(s), ${outcome.newItems} new item(s), ${outcome.failed} error(s) in ${
-        Date.now() - startedAt
-      }ms`,
-    );
-  } catch (error) {
-    const details = error instanceof Error ? error : new Error(String(error));
-    console.error('[crawl] failed:', details.stack ?? details.message);
   }
+
+  const [bootstrap, crawler, settings, digest] = await Promise.all([
+    import('../../src/bootstrap.js'),
+    import('../../src/crawler/index.js'),
+    import('../../src/db/repositories/settings.repo.js'),
+    import('../../src/notifications/digest.js'),
+  ]);
+
+  await bootstrap.ensureReady({ log: console.log });
+  if (!(await settings.getBool('crawler_enabled', true))) return;
+
+  const outcome = await crawler.runDueChecks({
+    concurrency: await settings.getInt('crawler_concurrency', 8),
+    limitWebsites: 20,
+  });
+  console.log(`[crawl] inline: ${outcome.checked} website(s), ${outcome.newItems} new item(s)`);
+
+  if (await digest.digestDue()) await digest.sendDigest();
 };
 
 export const config: Config = {
-  // Twice a day (UTC): ~23:00 and ~07:00 in Madrid. The night pass records
-  // what changed during the day; the morning pass records the rest and sends
-  // the report. Checking costs no model tokens, but fewer runs also means
-  // fewer platform invocations, which is the other bill.
+  // ~23:00 and ~07:00 in Madrid.
   schedule: '0 5,21 * * *',
 };

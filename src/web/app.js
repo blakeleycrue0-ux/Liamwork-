@@ -118,6 +118,15 @@ function openModal({ title, fields, submitLabel = 'Guardar', onSubmit, secondary
       for (const option of field.options) {
         input.append(el('option', { value: option.value, textContent: option.label, selected: option.value === field.value }));
       }
+    } else if (field.type === 'textarea') {
+      input = el('textarea', {
+        id: `f-${field.name}`,
+        name: field.name,
+        rows: 10,
+        placeholder: field.placeholder ?? '',
+        style: 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px',
+      });
+      input.value = field.value ?? '';
     } else {
       input = el('input', {
         id: `f-${field.name}`,
@@ -527,6 +536,44 @@ async function inspectSite(values, output) {
   }
 
   output.replaceChildren(...nodes);
+}
+
+/** Paste a list of clubs and create them all at once. */
+function importModal() {
+  openModal({
+    title: 'Importar lista de webs',
+    fields: [
+      {
+        name: 'text',
+        label: 'Pega la lista',
+        type: 'textarea',
+        placeholder: 'Albatross\nhttps://www.albatrossgolfklubb.se/\nÅkersberga\nhttps://akersbergagk.se/',
+        hint: 'Un nombre y su dirección, o las dos cosas en la misma línea. Las repetidas se ignoran.',
+      },
+      {
+        name: 'check_interval',
+        label: 'Cada cuánto comprobarlas (segundos)',
+        type: 'number',
+        min: 10,
+        max: 86400,
+        value: state.settings.default_check_interval ?? 600,
+      },
+    ],
+    submitLabel: 'Importar',
+    onSubmit: async (values) => {
+      const result = await api('/websites/import', {
+        method: 'POST',
+        body: { text: values.text, check_interval: Number(values.check_interval) },
+      });
+      const parts = [`${result.created.length} añadidas`];
+      if (result.skipped.length) parts.push(`${result.skipped.length} ya estaban`);
+      if (result.failed.length) parts.push(`${result.failed.length} con error`);
+      if (result.unparsed.length) parts.push(`${result.unparsed.length} líneas ilegibles`);
+      toast(parts.join(' · '), result.created.length ? 'ok' : 'err');
+      await loadWebsites();
+      refreshStatus();
+    },
+  });
 }
 
 function websiteModal(website) {
@@ -998,6 +1045,7 @@ async function init() {
   });
 
   $('#add-website').addEventListener('click', () => websiteModal(null));
+  $('#import-websites').addEventListener('click', () => importModal());
   $('#add-worker').addEventListener('click', () => workerModal(null));
   $('#add-user').addEventListener('click', () => userModal());
   $('#activity-filter').addEventListener('change', () => loadActivity());

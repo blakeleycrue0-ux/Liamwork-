@@ -90,7 +90,7 @@ export const config = {
   crawler: {
     schedulerTick: int(process.env.SCHEDULER_TICK, 15),
     concurrency: int(process.env.CRAWLER_CONCURRENCY, 8),
-    timeoutMs: int(process.env.CRAWLER_TIMEOUT_MS, 20000),
+    timeoutMs: int(process.env.CRAWLER_TIMEOUT_MS, 15000),
     userAgent: process.env.CRAWLER_USER_AGENT || 'WebMonitorBot/1.0',
     runInWeb: bool(process.env.RUN_SCHEDULER_IN_WEB, true),
   },

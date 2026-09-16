@@ -14,6 +14,7 @@ import { aiConfigured, detectWithAi, previewWebsite } from '../../crawler/fetche
 import { inspectWebsite } from '../../crawler/inspect.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { parseWebsitePayload, ValidationError } from '../validate.js';
+import { parseWebsiteList } from '../importList.js';
 
 export const websiteRoutes = Router();
 
@@ -86,6 +87,46 @@ websiteRoutes.post(
 );
 
 /** Dry-run used by the form: shows what the current configuration would find. */
+/** Bulk import: paste a list of clubs and they are all created at once. */
+websiteRoutes.post(
+  '/import',
+  asyncHandler(async (req, res) => {
+    const { entries, problems } = parseWebsiteList(req.body?.text ?? '');
+    const interval = Number(req.body?.check_interval) || 600;
+
+    const existing = new Set(
+      (await listWebsites()).map((website) => website.url.replace(/\/+$/, '')),
+    );
+
+    const created = [];
+    const skipped = [];
+    const failed = [];
+
+    for (const entry of entries) {
+      if (existing.has(entry.url.replace(/\/+$/, ''))) {
+        skipped.push(entry.name);
+        continue;
+      }
+      try {
+        const website = await createWebsite({
+          name: entry.name,
+          url: entry.url,
+          active: true,
+          check_interval: interval,
+          detection_method: 'auto',
+          selector_config: {},
+        });
+        created.push(website.name);
+        existing.add(entry.url.replace(/\/+$/, ''));
+      } catch (error) {
+        failed.push(`${entry.name}: ${error.message}`);
+      }
+    }
+
+    return res.json({ created, skipped, failed, unparsed: problems });
+  }),
+);
+
 websiteRoutes.post(
   '/preview',
   asyncHandler(async (req, res) => {

@@ -3,7 +3,7 @@ import { getDb, nowIso } from '../index.js';
 const DEFAULTS = {
   default_check_interval: '600',
   scheduler_tick: '15',
-  crawler_concurrency: '8',
+  crawler_concurrency: '10',
   notify_on_first_check: 'false',
   max_items_per_email: '20',
   crawler_enabled: 'true',
