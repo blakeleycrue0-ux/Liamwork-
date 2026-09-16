@@ -5,9 +5,10 @@ import {
   setActive,
   updateWebsite,
 } from '../../db/repositories/websites.repo.js';
-import { countPostsByWebsite, listPosts } from '../../db/repositories/posts.repo.js';
+import { countPages, listPages } from '../../db/repositories/pages.repo.js';
+import { listChanges } from '../../db/repositories/changes.repo.js';
 import { listLogs } from '../../db/repositories/checkLogs.repo.js';
-import { checkWebsite } from '../../crawler/index.js';
+import { crawlWebsite } from '../../monitor/crawl.js';
 import { aiConfigured, detectWithAi, previewWebsite } from '../../crawler/fetchers/index.js';
 import { inspectWebsite } from '../../crawler/inspect.js';
 import { asyncHandler } from '../middleware/errors.js';
@@ -16,7 +17,7 @@ import { parseWebsitePayload, ValidationError } from '../validate.js';
 export const websiteRoutes = Router();
 
 const withStats = async (website) =>
-  website && { ...website, posts_count: await countPostsByWebsite(website.id) };
+  website && { ...website, posts_count: await countPages(website.id) };
 
 websiteRoutes.get(
   '/',
@@ -59,14 +60,29 @@ websiteRoutes.post(
   }),
 );
 
-/** Manual check, runs immediately in this process and returns the outcome. */
+/**
+ * Manual check: crawls this one website now and stores whatever moved.
+ * It does NOT analyse or email - that is what the daily pass is for, and a
+ * dashboard button must never be able to spend tokens by accident.
+ */
 websiteRoutes.post(
   '/:id/check',
   asyncHandler(async (req, res) => {
     const website = await getWebsite(Number(req.params.id));
     if (!website) return res.status(404).json({ error: 'Web no encontrada' });
-    const result = await checkWebsite(website, { force: true });
-    return res.json({ result, website: await withStats(await getWebsite(website.id)) });
+    const outcome = await crawlWebsite(website, { maxPages: 12 });
+    return res.json({
+      result: {
+        ok: outcome.ok,
+        error: outcome.error ?? null,
+        itemsFound: outcome.pagesSeen ?? 0,
+        newItems: outcome.pagesChanged ?? 0,
+        baseline: Boolean(outcome.baseline),
+        note: outcome.pagesFailed ? `${outcome.pagesFailed} página(s) con error` : null,
+        notified: false,
+      },
+      website: await withStats(await getWebsite(website.id)),
+    });
   }),
 );
 
@@ -119,7 +135,13 @@ websiteRoutes.get(
     const websiteId = Number(req.params.id);
     if (!(await getWebsite(websiteId))) return res.status(404).json({ error: 'Web no encontrada' });
     const limit = Math.min(Number(req.query.limit) || 50, 200);
-    return res.json({ posts: await listPosts({ websiteId, limit }) });
+    // Historically "posts". The history of a website is now its detected
+    // changes and the pages being tracked for it.
+    const [changes, pages] = await Promise.all([
+      listChanges({ websiteId, limit }),
+      listPages({ websiteId, limit }),
+    ]);
+    return res.json({ changes, pages, posts: changes });
   }),
 );
 

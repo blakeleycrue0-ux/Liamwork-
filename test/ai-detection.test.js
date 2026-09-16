@@ -50,21 +50,21 @@ test('without a key it fails with an explanation, not a crash', async () => {
   );
 });
 
-test('with no key configured, a website that finds nothing is not retried with the AI', async (t) => {
-  // The recovery path must stay silent (and free) when there is no key: the
-  // check still succeeds, it simply reports zero items.
+test('with no key configured, nothing is ever sent to the model', async (t) => {
+  // The pipeline must stay silent - and free - when there is no key: the
+  // crawl still succeeds and stores versions, it simply analyses nothing.
   const { startFixtureSite } = await import('./helpers.js');
   const { runMigrations } = await import('../src/db/migrate.js');
   const websites = await import('../src/db/repositories/websites.repo.js');
-  const logs = await import('../src/db/repositories/checkLogs.repo.js');
-  const { checkWebsite } = await import('../src/crawler/index.js');
+  const { crawlWebsite } = await import('../src/monitor/crawl.js');
+  const { analyzeCandidates } = await import('../src/monitor/analyze.js');
 
   await runMigrations({ log: () => {} });
-  const site = await startFixtureSite({ posts: [], withFeed: false });
+  const site = await startFixtureSite({ posts: [{ title: 'Una publicación cualquiera', url: '/p1' }] });
   t.after(() => site.close());
 
   const website = await websites.createWebsite({
-    name: 'Sin publicaciones',
+    name: 'Sin clave',
     url: site.url,
     active: true,
     check_interval: 60,
@@ -72,13 +72,12 @@ test('with no key configured, a website that finds nothing is not retried with t
     selector_config: {},
   });
 
-  const result = await checkWebsite(website);
-  assert.equal(result.ok, true);
-  assert.equal(result.itemsFound, 0);
-  assert.equal(await logs.lastAiAttemptAt(website.id), null, 'no AI attempt was recorded');
+  const first = await crawlWebsite(website, { maxPages: 4 });
+  assert.equal(first.ok, true);
+  assert.equal(first.baseline, true, 'the first crawl of a site is its baseline');
+  assert.equal(first.candidates.length, 0, 'and produces nothing to analyse');
 
-  // "0 publicaciones" must never be a dead end: the log says what to do next.
-  assert.match(result.note, /ANTHROPIC_API_KEY/);
-  const [entry] = await logs.listLogs({ websiteId: website.id, limit: 1 });
-  assert.match(entry.error_message, /ANTHROPIC_API_KEY/);
+  const outcome = await analyzeCandidates([], { changeDate: '2026-09-16' });
+  assert.equal(outcome.analyzed, 0);
+  assert.equal(outcome.usage.input, 0, 'not a single token without a key');
 });

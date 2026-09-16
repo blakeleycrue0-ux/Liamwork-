@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listPosts } from '../../db/repositories/posts.repo.js';
+import { listChanges } from '../../db/repositories/changes.repo.js';
 import { listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { getAllSettings, setSettings } from '../../db/repositories/settings.repo.js';
 import { verifyTransport } from '../../notifications/mailer.js';
@@ -7,13 +7,18 @@ import { activeRecipients } from '../../notifications/notifier.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { ValidationError } from '../validate.js';
 
+/**
+ * Historically /api/posts. It now serves detected changes, which is what the
+ * dashboard's activity view is actually about.
+ */
 export const postRoutes = Router();
 postRoutes.get(
   '/',
   asyncHandler(async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const websiteId = req.query.website_id ? Number(req.query.website_id) : null;
-    res.json({ posts: await listPosts({ limit, websiteId }) });
+    const changes = await listChanges({ limit, websiteId, date: req.query.date || null });
+    res.json({ changes, posts: changes });
   }),
 );
 
@@ -36,8 +41,16 @@ const NUMERIC_SETTINGS = {
   log_retention_days: [0, 365],
   ai_recovery_min_hours: [1, 168],
   digest_hour: [0, 23],
+  max_pages_per_website: [1, 100],
 };
-const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled', 'ai_recovery_enabled', 'digest_ai_enabled'];
+const BOOL_SETTINGS = [
+  'notify_on_first_check',
+  'crawler_enabled',
+  'ai_recovery_enabled',
+  'digest_ai_enabled',
+  'report_send_when_empty',
+  'report_include_low',
+];
 
 export const settingsRoutes = Router();
 settingsRoutes.get(
@@ -59,7 +72,7 @@ settingsRoutes.put(
       }
       patch[key] = value;
     }
-    for (const key of ['notification_mode', 'digest_timezone']) {
+    for (const key of ['notification_mode', 'digest_timezone', 'analysis_model']) {
       if (req.body?.[key] === undefined) continue;
       const value = String(req.body[key]).trim();
       if (key === 'notification_mode' && !['digest', 'instant'].includes(value)) {

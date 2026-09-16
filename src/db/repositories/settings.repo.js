@@ -12,12 +12,25 @@ const DEFAULTS = {
   ai_recovery_min_hours: '6',
   // 'digest' -> one summary a day; 'instant' -> an email per detection.
   notification_mode: 'digest',
-  digest_hour: '6',
+  digest_hour: '7',
   digest_timezone: 'Europe/Madrid',
   digest_last_date: '',
   // Turn this off and the report is still sent, grouped by website, with no
   // model call at all: zero credits.
   digest_ai_enabled: 'true',
+
+  // --- Monitoring v2 -------------------------------------------------------
+  // How many pages of each website are fetched per pass. The listing plus its
+  // most recent entries; going deeper costs time and finds nothing new.
+  max_pages_per_website: '12',
+  // The model that judges what changed. Switch to claude-haiku-4-5 to spend
+  // roughly a fifth as much, at the cost of finer judgement.
+  analysis_model: 'claude-opus-5',
+  // Send the morning email even on a day when nothing changed, so silence is
+  // never ambiguous. Turn it off to hear only when there is something.
+  report_send_when_empty: 'true',
+  // Keep LOW-priority changes out of the email. They stay in the dashboard.
+  report_include_low: 'true',
 };
 
 /**

@@ -251,30 +251,18 @@ async function refreshStatus() {
   $('#s-last-check').textContent = fmtTime(data.checks.last_checked_at);
   $('#s-last-check-sub').textContent = fmtAgo(data.checks.last_checked_at);
 
-  $('#s-news').textContent = data.posts.new_24h;
-  $('#s-news-sub').textContent = `${data.posts.new_7d} en los últimos 7 días`;
+  $('#s-news').textContent = data.report.pending_changes;
+  $('#s-news-sub').textContent = `del ${data.report.covers_date}, para el informe de mañana`;
 
   $('#s-errors').textContent = data.checks.errors_24h;
-  $('#s-errors-sub').textContent = `${crawler.due_now} web(s) pendientes ahora`;
+  $('#s-errors-sub').textContent = `${data.usage_7d.analyses} análisis en 7 días · ${
+    data.usage_7d.input_tokens + data.usage_7d.output_tokens
+  } tokens`;
 
   $('#recent-posts').replaceChildren(
-    ...(data.recent_posts.length
-      ? data.recent_posts.map((post) =>
-          el('tr', {}, [
-            el('td', { textContent: post.website_name }),
-            el('td', {}, [
-              post.url
-                ? el('a', { href: post.url, target: '_blank', rel: 'noopener', textContent: post.title })
-                : document.createTextNode(post.title),
-            ]),
-            el('td', { className: 'muted', textContent: fmtAgo(post.first_seen_at) }),
-            el('td', {}, [
-              post.notified_at ? dot('ok') : dot('off'),
-              post.notified_at ? 'Enviado' : 'No enviado',
-            ]),
-          ]),
-        )
-      : [el('tr', {}, [el('td', { colSpan: 4, className: 'empty', textContent: 'Todavía no hay novedades' })])]),
+    ...(data.recent_changes.length
+      ? data.recent_changes.map((change) => changeRow(change))
+      : [el('tr', {}, [el('td', { colSpan: 4, className: 'empty', textContent: 'Todavía no hay cambios' })])]),
   );
 
   $('#recent-errors').replaceChildren(
@@ -298,53 +286,130 @@ async function refreshStatus() {
   await refreshDigest().catch(() => {});
 }
 
-/* ---------------------------------------------------------- daily digest */
+/** Colour and wording for a verdict, used everywhere a change is listed. */
+const PRIORITY = {
+  HIGH: { dot: 'err', label: 'Alta' },
+  MEDIUM: { dot: 'warn', label: 'Media' },
+  LOW: { dot: 'off', label: 'Baja' },
+};
+
+function changeRow(change) {
+  const priority = PRIORITY[change.priority] ?? PRIORITY.LOW;
+  const row = el('tr', {}, [
+    el('td', { textContent: change.website_name }),
+    el('td', {}, [
+      el('div', {}, [
+        change.url
+          ? el('a', { href: change.url, target: '_blank', rel: 'noopener', textContent: change.title || change.url })
+          : document.createTextNode(change.title || '—'),
+      ]),
+      change.summary ? el('div', { className: 'hint', textContent: change.summary }) : '',
+    ]),
+    el('td', { className: 'muted', textContent: fmtAgo(change.detected_at) }),
+    el('td', {}, [
+      dot(priority.dot),
+      `${change.change_type === 'NEW' ? 'Nuevo' : 'Actualizado'} · ${priority.label}`,
+    ]),
+  ]);
+  row.style.cursor = 'pointer';
+  row.addEventListener('click', () => showChangeAudit(change.id));
+  return row;
+}
+
+/**
+ * Why the system decided this. Requirement 13: what the model was shown and
+ * what it answered, readable without opening the database.
+ */
+async function showChangeAudit(id) {
+  const { change, audit, versions } = await api(`/reports/changes/${id}`);
+  const modal = el('div', { className: 'modal' }, [
+    el('h2', { textContent: change.title || 'Cambio detectado' }),
+    el('div', { className: 'hint', textContent: `${change.website_name} · ${change.change_date} · ${change.change_type} · ${change.priority}` }),
+    change.summary ? el('p', { textContent: change.summary }) : '',
+    change.what_changed ? el('p', {}, [el('strong', { textContent: 'Qué cambió: ' }), change.what_changed]) : '',
+    change.previous_value && change.new_value
+      ? el('div', { className: 'preview-box mono' }, [
+          el('div', { textContent: `Antes: ${change.previous_value}` }),
+          el('div', { textContent: `Ahora: ${change.new_value}` }),
+        ])
+      : '',
+    el('h2', { style: 'margin-top:22px', textContent: 'Auditoría' }),
+    el('div', { className: 'hint', textContent:
+      `Modelo: ${audit.model ?? 'ninguno'} · ${audit.input_tokens} tokens de entrada (${audit.cached_tokens} en caché), ${audit.output_tokens} de salida` }),
+    change.reasoning ? el('p', { className: 'muted', textContent: change.reasoning }) : '',
+    el('div', { className: 'hint', style: 'margin-top:14px', textContent: 'Lo que vio el modelo:' }),
+    el('pre', { className: 'preview-box mono', textContent: audit.input || '—' }),
+    versions.before
+      ? el('details', {}, [
+          el('summary', { className: 'hint', textContent: `Versión anterior (${fmtDateTime(versions.before.captured_at)})` }),
+          el('pre', { className: 'preview-box mono', textContent: versions.before.text.slice(0, 4000) }),
+        ])
+      : '',
+  ]);
+
+  const close = el('button', { textContent: 'Cerrar' });
+  modal.append(el('div', { className: 'modal-actions' }, [close]));
+  const backdrop = el('div', { className: 'modal-backdrop' }, [modal]);
+  close.addEventListener('click', () => backdrop.remove());
+  backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) backdrop.remove(); });
+  $('#modal-root').append(backdrop);
+}
+
+/* ---------------------------------------------------------- daily report */
 /** The hero: when the next report goes out and what is waiting for it. */
 async function refreshDigest() {
   const { digest } = await api('/digest');
   state.digest = digest;
 
-  if (digest.mode !== 'digest') {
-    $('#digest-headline').textContent = 'Aviso inmediato por cada novedad';
-    $('#digest-meta').textContent = 'Cambia el modo en Configuración para recibir un único informe al día.';
-    return;
-  }
-
-  const pending = digest.pending_items;
+  const pending = digest.pending_changes;
   $('#digest-headline').textContent = pending
-    ? `${pending} novedad${pending === 1 ? '' : 'es'} esperando al informe`
-    : 'Sin novedades pendientes';
-  $('#digest-meta').textContent = digest.sent_today
-    ? `Informe de hoy ya enviado · próximo mañana a las ${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`
-    : `Se enviará hoy a las ${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`;
+    ? `${pending} cambio(s) del ${digest.covers_date} esperando el informe`
+    : `Sin cambios pendientes del ${digest.covers_date}`;
+  $('#digest-meta').textContent = digest.last_sent_date
+    ? `Último informe enviado: ${digest.last_sent_date} · el próximo sale a las ${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`
+    : `El primer informe saldrá a las ${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`;
 }
 
-/** Shows the exact briefing that would be emailed, without sending it. */
+/** Shows the exact report that would be emailed, without sending it. */
 async function showDigestPreview() {
-  const { summary, items } = await api('/digest/preview');
+  const { report, date } = await api('/digest/preview');
+
+  const groups = [
+    { key: 'HIGH', label: 'Prioridad alta', dot: 'err' },
+    { key: 'MEDIUM', label: 'Prioridad media', dot: 'warn' },
+    { key: 'LOW', label: 'Prioridad baja', dot: 'ok' },
+  ];
+
   const modal = el('div', { className: 'modal' }, [
-    el('h2', { textContent: 'Borrador del informe' }),
-    el('div', { className: 'strong', style: 'font-size:16px', textContent: summary.headline }),
+    el('h2', { textContent: `Informe del ${date}` }),
     el('div', {
       className: 'hint',
-      textContent: `${items} novedad(es) · ${summary.generatedByAi ? 'redactado por IA' : 'agrupado por web'}`,
+      textContent: `${report.total_changes} cambio(s) · ${report.high_priority} alta, ${report.medium_priority} media, ${report.low_priority} baja`,
     }),
-    ...(summary.sections.length
-      ? summary.sections.map((section) =>
-          el('div', { className: 'digest-section' }, [
-            el('div', { className: 'digest-title', textContent: `${section.emoji} ${section.title}` }),
-            ...section.items.map((item) =>
-              el('div', { className: 'digest-item' }, [
-                el('div', { className: 'what', textContent: item.text }),
-                el('div', { className: 'where' }, [
-                  item.website,
-                  item.url ? el('a', { href: item.url, target: '_blank', rel: 'noopener', textContent: ' · abrir' }) : '',
-                ]),
+    el('p', { textContent: report.daily_summary }),
+    ...groups
+      .map((group) => ({ ...group, items: report.changes.filter((change) => change.priority === group.key) }))
+      .filter((group) => group.items.length)
+      .map((group) =>
+        el('div', { className: 'digest-section' }, [
+          el('div', { className: 'digest-title' }, [dot(group.dot), ` ${group.label}`]),
+          ...group.items.map((item) =>
+            el('div', { className: 'digest-item' }, [
+              el('div', { className: 'what', textContent: item.title }),
+              item.summary ? el('div', { className: 'where', textContent: item.summary }) : '',
+              item.what_changed ? el('div', { className: 'where', textContent: `Qué cambió: ${item.what_changed}` }) : '',
+              item.previous_value && item.new_value
+                ? el('div', { className: 'where mono', textContent: `${item.previous_value} → ${item.new_value}` })
+                : '',
+              el('div', { className: 'where' }, [
+                item.website,
+                item.url ? el('a', { href: item.url, target: '_blank', rel: 'noopener', textContent: ' · abrir' }) : '',
               ]),
-            ),
-          ]),
-        )
-      : [el('div', { className: 'empty', textContent: 'Nada que contar todavía.' })]),
+            ]),
+          ),
+        ]),
+      ),
+    report.total_changes ? '' : el('div', { className: 'empty', textContent: 'Nada que contar ese día.' }),
   ]);
 
   const close = el('button', { textContent: 'Cerrar' });
@@ -794,25 +859,36 @@ async function loadWorkers() {
 /* ----------------------------------------------------------- activity tab */
 async function loadActivity() {
   const onlyErrors = $('#activity-filter').value === 'errors';
-  const [{ posts }, { logs }] = await Promise.all([
+  const [{ changes }, { logs }] = await Promise.all([
     api('/posts?limit=50'),
     api(`/logs?limit=100${onlyErrors ? '&errors=true' : ''}`),
   ]);
 
+  // Everything is listed here, including what the model judged irrelevant:
+  // the point of this view is to be able to check its work.
   $('#posts-body').replaceChildren(
-    ...(posts.length
-      ? posts.map((post) =>
-          el('tr', {}, [
-            el('td', { textContent: post.website_name }),
+    ...(changes.length
+      ? changes.map((change) => {
+          const priority = PRIORITY[change.priority] ?? PRIORITY.LOW;
+          const row = el('tr', {}, [
+            el('td', { textContent: change.website_name }),
             el('td', {}, [
-              post.url ? el('a', { href: post.url, target: '_blank', rel: 'noopener', textContent: post.title }) : post.title,
+              el('div', {}, [
+                change.url
+                  ? el('a', { href: change.url, target: '_blank', rel: 'noopener', textContent: change.title || change.url })
+                  : document.createTextNode(change.title || '—'),
+              ]),
+              change.summary ? el('div', { className: 'hint', textContent: change.summary }) : '',
             ]),
-            el('td', { className: 'muted', textContent: fmtDateTime(post.published_at) }),
-            el('td', { className: 'muted', textContent: fmtDateTime(post.first_seen_at) }),
-            el('td', {}, [post.notified_at ? dot('ok') : dot('off'), post.notified_at ? 'Enviado' : 'No enviado']),
-          ]),
-        )
-      : [el('tr', {}, [el('td', { colSpan: 5, className: 'empty', textContent: 'Sin publicaciones' })])]),
+            el('td', { className: 'muted', textContent: change.change_date }),
+            el('td', { className: 'muted', textContent: fmtDateTime(change.detected_at) }),
+            el('td', {}, [dot(priority.dot), `${change.change_type} · ${priority.label}`]),
+          ]);
+          row.style.cursor = 'pointer';
+          row.addEventListener('click', () => showChangeAudit(change.id));
+          return row;
+        })
+      : [el('tr', {}, [el('td', { colSpan: 5, className: 'empty', textContent: 'Sin cambios registrados' })])]),
   );
 
   $('#logs-body').replaceChildren(

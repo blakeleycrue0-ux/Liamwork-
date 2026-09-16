@@ -13,61 +13,72 @@ nunca desde el código.
 ## 1. Arquitectura
 
 ```
-┌──────────────┐        ┌──────────────────────────────────────────┐
-│  Dashboard   │  HTTP  │  Backend / API  (Express)                │
-│  (SPA, JS    │ <────> │  auth · websites · workers · status      │
-│   sin build) │        │  posts · logs · settings                 │
-└──────────────┘        └───────────────┬──────────────────────────┘
-                                        │
-                      ┌─────────────────┴──────────────────┐
-                      │        SQLite (WAL)                │
-                      │  websites · workers · posts ·      │
-                      │  check_logs · settings ·           │
-                      │  crawler_state · sessions          │
-                      └─────────────────┬──────────────────┘
-                                        │
-   ┌─────────────┐   ┌──────────────────┴────────┐   ┌──────────────────┐
-   │  Scheduler  │──>│  Crawler (concurrente)    │──>│  Detector de     │
-   │  (tick)     │   │  fetchers modulares:      │   │  novedades       │
-   └─────────────┘   │  rss · html · browser     │   │  (content_hash)  │
-                     └───────────────────────────┘   └────────┬─────────┘
-                                                              │
-                                                     ┌────────┴─────────┐
-                                                     │ Email (nodemailer│
-                                                     │ SMTP / console)  │
-                                                     └──────────────────┘
+  28 WEBS
+     |
+     v
+  CRAWLER  ---------  lee el listado y las paginas recientes de cada web,
+     |                limpia el HTML (fuera menus, cookies, anuncios,
+     |                contadores) y lo reduce a texto normalizado en UTF-8
+     v
+  ALMACEN  ---------  pages + page_versions
+     |                guarda una version NUEVA solo si el texto cambio.
+     |                Nada cambio -> ni una llamada al modelo.
+     v
+  CLAUDE   ---------  recibe SOLO las lineas que cambiaron (un diff), junto
+     |                con la fecha que la pagina declara sobre si misma.
+     |                Clasifica: NEW / UPDATED / UNCHANGED / IGNORED
+     |                y prioriza:  HIGH / MEDIUM / LOW
+     v
+  CAMBIOS  ---------  detected_changes, con la auditoria completa:
+     |                que se le mostro, que respondio, con que modelo
+     v
+  INFORME  ---------  daily_reports + UN email cada manana con lo del
+                      dia anterior, agrupado por prioridad
 ```
 
-Cada pieza vive en su propio módulo y puede sustituirse sin tocar las demás:
+Cada pieza vive en su propio modulo y puede sustituirse sin tocar las demas:
 
 | Carpeta | Responsabilidad |
 |---|---|
-| `src/config` | Carga y validación de variables de entorno (nada sensible en el código) |
-| `src/db` | Conexión SQLite, migraciones SQL y **repositorios** (una capa por tabla) |
-| `src/crawler` | Orquestación de comprobaciones, normalización y `fetchers/` intercambiables |
-| `src/crawler/fetchers` | `rss`, `html`, `browser` (Playwright, opcional) y modo `auto` |
-| `src/scheduler` | Bucle periódico, calcula qué webs tocan y publica el heartbeat |
-| `src/notifications` | Transporte de email, plantillas y agrupación de alertas |
-| `src/api` | Servidor Express, autenticación, sesiones, CSRF, validación y rutas |
-| `src/web` | Dashboard estático (HTML + CSS + JS, sin build ni framework) |
-| `src/cli` | Utilidades: `seed`, `check-once`, `hash-password` |
+| `src/config` | Variables de entorno y la lista de las 28 webs (`sites.js`) |
+| `src/db` | Conexion (SQLite o Supabase), migraciones y **repositorios** |
+| `src/crawler` | HTTP, decodificacion de texto y `fetchers/` (rss, html, browser) |
+| `src/monitor` | **El sistema nuevo**: crawl, diff, analisis con Claude, informe |
+| `src/scheduler` | Bucle periodico y heartbeat |
+| `src/notifications` | Transporte de email y destinatarios |
+| `src/api` | Express, rutas, validacion |
+| `src/web` | Dashboard estatico (HTML + CSS + JS, sin build) |
+| `src/cli` | `seed`, `check-once`, `hash-password`, `migrate-postgres` |
 
-**Decisiones clave**
+**Las tres decisiones que sostienen el sistema**
 
-- **Node.js 20+ / Express / SQLite (better-sqlite3)**: cero build, cero servicios
-  externos, un único `npm install` para arrancar. La capa de repositorios aísla
-  el SQL, así que migrar a PostgreSQL más adelante toca solo `src/db`.
-- **El crawler puede correr dentro del servidor web o como proceso aparte**
-  (`npm run crawler`). Ambos procesos comparten estado por la base de datos
-  (modo WAL) y el dashboard muestra el heartbeat del crawler aunque esté en
-  otra máquina.
-- **Detección por contenido, no visual**: cada publicación se identifica con un
-  `content_hash` (guid del RSS → URL canónica → título). Un cambio de diseño,
-  un banner o un contador no generan alertas; solo las publicaciones nuevas.
-- **Concurrencia acotada**: las webs pendientes se comprueban en paralelo con un
-  límite configurable (`crawler_concurrency`), así 28 webs tardan lo que la más
-  lenta, no la suma de todas. Cada comprobación está aislada: **un fallo en una
-  web nunca detiene a las demás**.
+**1. Encontrar una URL otra vez no es una novedad.** Es el error que tenia el
+sistema anterior: identificaba cada publicacion por un hash de su enlace, asi
+que una noticia de 2025 que el crawler no habia llegado a ver antes aparecia
+como nueva en 2026. Ahora lo que se compara es el TEXTO de cada pagina contra
+la ultima version guardada, y a Claude se le entrega ademas la fecha que la
+propia pagina declara. Una pagina de 2025 que sigue publicada y no ha cambiado
+es `UNCHANGED`, se le descubra cuando se le descubra.
+
+**2. El crawler filtra, Claude juzga.** El crawler no sabe si un cambio importa
+-solo sabe que unos bytes son distintos-, y tratar esas dos preguntas como si
+fueran la misma es lo que llenaba el correo de banners de cookies. Asi que el
+crawler responde la pregunta barata (que se ha movido) y Claude la cara (que
+significa). Una web que no cambio no llega al modelo, y de una que si cambio
+solo llegan las lineas afectadas.
+
+**3. Un email al dia, con candado.** El envio lo bloquea `daily_reports.sent_at`,
+no una variable en memoria: dos ejecuciones del scheduler, un reintento tras
+una caida o un despliegue a media manana no pueden producir un segundo correo.
+
+**Coste**
+
+Un dia tranquilo cuesta **cero**: sin paginas cambiadas no hay llamada. Un dia
+normal son unas pocas llamadas de unos miles de tokens, porque lo que viaja es
+un diff y no un documento. El prompt del sistema va marcado con `cache_control`,
+asi que a partir de la segunda llamada de cada pasada se cobra a una decima
+parte. El modelo se elige en Configuracion (`analysis_model`): con
+`claude-haiku-4-5` el gasto baja aproximadamente a una quinta parte.
 
 ---
 
@@ -259,17 +270,24 @@ texto libre que haya que adivinar.
 
 | Tabla | Contenido |
 |---|---|
-| `websites` | Webs monitorizadas: url, activa, intervalo, método, selectores (JSON), última comprobación/éxito/error, contadores de error, última novedad |
-| `workers` | Destinatarios: nombre, email, activo, fechas |
-| `posts` | Publicaciones detectadas: título, url, fecha, `content_hash`, `first_seen_at`, `notified_at`. `UNIQUE(website_id, content_hash)` garantiza que **una alerta nunca se envía dos veces** |
-| `check_logs` | Historial de comprobaciones: éxito, items encontrados, nuevos, método, duración, error |
-| `settings` | Configuración global editable desde el dashboard |
-| `crawler_state` | Heartbeat compartido del crawler (estado, última/próxima ejecución, pid) |
+| `websites` | Las webs vigiladas: url, activa, intervalo, metodo, selectores (JSON), ultima comprobacion/exito/error |
+| `workers` | Destinatarios del informe: nombre, email, activo |
+| `pages` | Una fila por URL vigilada: estado, cuando se descubrio, cuando se vio por ultima vez, cuando cambio por ultima vez, hash del texto actual, fecha que declara la pagina. `UNIQUE(website_id, url)` |
+| `page_versions` | El texto completo cada vez que cambio. **No se borra nunca**: es lo que permite a Claude comparar antes y ahora |
+| `detected_changes` | Un veredicto por cambio: tipo, prioridad, resumen, que cambio, valor anterior y nuevo, y la **auditoria** (`analysis_input`, `analysis_output`, `model`, tokens). `UNIQUE(to_version_id, page_id)` impide juzgar dos veces la misma version |
+| `daily_reports` | Un informe por dia: ventana exacta, recuentos por prioridad, el JSON completo, cuando se envio y a quien |
+| `check_logs` | Historial de comprobaciones por web |
+| `settings` | Configuracion editable desde el dashboard |
+| `crawler_state` | Heartbeat del crawler |
 | `sessions` | Sesiones del dashboard |
 
-Las migraciones son ficheros SQL en `src/db/migrations/`, aplicados una sola vez
-y registrados en `schema_migrations`. Para añadir un cambio de esquema, crea
-`003_lo_que_sea.sql`: se aplicará solo en el siguiente arranque.
+En SQLite las migraciones son ficheros en `src/db/migrations/`. En Supabase el
+esquema se aplica solo en el primer arranque desde `src/db/schema.postgres.js`
+y `src/db/schema.monitor.js`; un test comprueba que las dos versiones declaran
+exactamente las mismas tablas.
+
+La tabla `posts` del sistema anterior sigue existiendo con su historico, pero
+ya no la escribe ni la lee nadie.
 
 ---
 

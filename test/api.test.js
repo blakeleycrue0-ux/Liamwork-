@@ -142,8 +142,10 @@ test('a watched website can be checked, edited and toggled from the dashboard', 
   assert.equal(checked.data.result.ok, true);
   assert.ok(checked.data.website.last_checked_at);
 
+  // The history of a website is now its tracked pages and detected changes.
   const history = await call(`/api/websites/${secondId}/posts`);
-  assert.equal(history.data.posts.length, 1);
+  assert.ok(Array.isArray(history.data.changes), 'detected changes are listed');
+  assert.ok(history.data.pages.length >= 1, 'and so are the pages being tracked');
 
   const invalid = await call(`/api/websites/${secondId}`, { method: 'PUT', body: { url: 'not-a-url' } });
   assert.equal(invalid.status, 400);
@@ -185,7 +187,9 @@ test('status endpoint reports the dashboard summary', async () => {
   assert.equal(data.websites.total, 2);
   assert.equal(data.workers.active, 1);
   assert.ok('status' in data.crawler);
-  assert.ok(Array.isArray(data.recent_posts));
+  assert.ok(Array.isArray(data.recent_changes));
+  assert.ok('covers_date' in data.report, 'the summary says which day the next report covers');
+  assert.ok('input_tokens' in data.usage_7d, 'and what the analysis has cost this week');
 });
 
 test('settings are editable and validated', async () => {

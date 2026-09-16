@@ -1,37 +1,20 @@
 import { listWorkers } from '../db/repositories/workers.repo.js';
-import { markNotified, pendingNotification } from '../db/repositories/posts.repo.js';
-import { getInt } from '../db/repositories/settings.repo.js';
 import { sendMail } from './mailer.js';
-import { buildTestEmail, buildUpdateEmail } from './templates.js';
+import { buildTestEmail } from './templates.js';
+
+/**
+ * Who receives email, and the one-off test message.
+ *
+ * There is deliberately no "send an email for this detection" function any
+ * more. Exactly one email leaves this system per day, and it is built in
+ * src/monitor/report.js. Keeping a second path alive is how a rebuild ends up
+ * still sending the thing it was supposed to stop sending.
+ */
 
 /** Active workers are the single source of truth for recipients. */
 export async function activeRecipients() {
   const workers = await listWorkers({ activeOnly: true });
   return workers.map((worker) => worker.email);
-}
-
-/**
- * Sends ONE grouped email per website for the posts that have not been
- * notified yet, then marks them as notified so they can never be sent twice.
- */
-export async function notifyNewPosts(website, posts) {
-  const items = posts?.length ? posts : await pendingNotification(website.id);
-  if (!items.length) return { sent: false, reason: 'no-new-posts', recipients: [] };
-
-  const recipients = await activeRecipients();
-  if (!recipients.length) {
-    return { sent: false, reason: 'no-active-workers', recipients: [], posts: items.length };
-  }
-
-  const limit = await getInt('max_items_per_email', 20);
-  const included = items.slice(0, limit);
-  const { subject, text, html } = buildUpdateEmail(website, included);
-
-  const info = await sendMail({ to: recipients, subject, text, html });
-  // Mark every pending post, including any beyond the per-email limit, so a
-  // very noisy site does not keep re-sending the same backlog.
-  await markNotified(items.map((post) => post.id));
-  return { sent: true, recipients, posts: items.length, messageId: info.messageId };
 }
 
 export async function sendTestEmail(to) {

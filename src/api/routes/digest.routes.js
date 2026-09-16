@@ -1,33 +1,37 @@
 import { Router } from 'express';
-import { digestStatus, sendDigest } from '../../notifications/digest.js';
-import { pendingForDigest } from '../../db/repositories/posts.repo.js';
-import { summariseDigest } from '../../notifications/digest.ai.js';
-import { getAllSettings } from '../../db/repositories/settings.repo.js';
 import { asyncHandler } from '../middleware/errors.js';
+import { buildReport, reportStatus, sendDailyReport } from '../../monitor/report.js';
+import { getAllSettings } from '../../db/repositories/settings.repo.js';
+import { previousDate } from '../../monitor/window.js';
 
+/**
+ * Kept as an alias of /api/reports.
+ *
+ * The daily email used to be called the "digest" and these paths are what the
+ * dashboard and old bookmarks call. They now answer for the new pipeline, so
+ * nothing points at the retired one.
+ */
 export const digestRoutes = Router();
 
 digestRoutes.get(
   '/',
-  asyncHandler(async (req, res) => res.json({ digest: await digestStatus() })),
+  asyncHandler(async (req, res) => res.json({ digest: await reportStatus() })),
 );
 
-/** Manual send, for "quiero verlo ahora" - does not wait for the hour. */
+/** Manual send: "quiero verlo ahora", without waiting for the hour. */
 digestRoutes.post(
   '/run',
-  asyncHandler(async (req, res) => res.json(await sendDigest({ force: true }))),
+  asyncHandler(async (req, res) => res.json(await sendDailyReport({ force: true }))),
 );
 
-/** Same summary, rendered in the dashboard without sending any email. */
+/** The same report rendered for the dashboard, with no email sent. */
 digestRoutes.get(
   '/preview',
   asyncHandler(async (req, res) => {
     const settings = await getAllSettings();
-    const posts = await pendingForDigest();
-    const summary = await summariseDigest(posts, {
-      timeZone: settings.digest_timezone,
-      date: new Date().toISOString().slice(0, 10),
-    });
-    res.json({ summary, items: posts.length });
+    const zone = settings.digest_timezone || 'Europe/Madrid';
+    const date = req.query.date || previousDate(zone);
+    const report = await buildReport({ date, timeZone: zone });
+    res.json({ report: report.payload, items: report.total_changes, date });
   }),
 );

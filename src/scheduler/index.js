@@ -1,8 +1,8 @@
 import { purgeOlderThan } from '../db/repositories/checkLogs.repo.js';
 import { getBool, getInt } from '../db/repositories/settings.repo.js';
 import { updateState } from '../db/repositories/crawlerState.repo.js';
-import { runDueChecks } from '../crawler/index.js';
-import { digestDue, sendDigest } from '../notifications/digest.js';
+import { runPipeline } from '../monitor/index.js';
+import { reportStatus, sendDailyReport } from '../monitor/report.js';
 
 /**
  * Periodic driver for the crawler. It wakes up every `scheduler_tick` seconds,
@@ -68,13 +68,15 @@ export class Scheduler {
         last_heartbeat_at: new Date().toISOString(),
         pid: process.pid,
       });
-      const outcome = await runDueChecks();
-      if (outcome.checked) {
+      const outcome = await runPipeline();
+      if (outcome.crawl.websites) {
         this.log(
-          `[scheduler] checked ${outcome.checked} website(s), ${outcome.newItems} new item(s), ${outcome.failed} error(s)`,
+          `[scheduler] ${outcome.crawl.websites} web(s), ${outcome.crawl.pagesChanged} página(s) con cambios, ` +
+            `${outcome.analysis.analyzed} analizada(s), ${outcome.analysis.reported} para el informe, ` +
+            `${outcome.crawl.failed} error(es)`,
         );
       }
-      await this.maybeDigest();
+      await this.maybeReport();
       await this.maybeCleanup();
       await updateState({
         status: 'idle',
@@ -93,16 +95,23 @@ export class Scheduler {
     }
   }
 
-  /** Sends the daily summary once its hour has passed. */
-  async maybeDigest() {
+  /**
+   * Sends the morning report once its hour has passed. Safe to call on every
+   * tick: the send is locked by daily_reports.sent_at, not by this check.
+   */
+  async maybeReport() {
     try {
-      if (!(await digestDue())) return;
-      const outcome = await sendDigest();
+      const status = await reportStatus();
+      if (!status.due) return;
+      const outcome = await sendDailyReport();
       if (outcome.sent) {
-        this.log(`[digest] sent ${outcome.posts} item(s) in ${outcome.sections} section(s)`);
+        this.log(
+          `[informe] enviado el del ${outcome.date}: ${outcome.changes} cambio(s) ` +
+            `(${outcome.high} alta, ${outcome.medium} media, ${outcome.low} baja)`,
+        );
       }
     } catch (error) {
-      this.log(`[digest] failed: ${error.message}`);
+      this.log(`[informe] falló: ${error.message}`);
     }
   }
 

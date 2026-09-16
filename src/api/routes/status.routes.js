@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { config } from '../../config/index.js';
 import { countsByStatus, listWebsites } from '../../db/repositories/websites.repo.js';
 import { countWorkers } from '../../db/repositories/workers.repo.js';
-import { countRecent, listPosts } from '../../db/repositories/posts.repo.js';
+import { listChanges, usageSince } from '../../db/repositories/changes.repo.js';
 import { countErrorsSince, lastCheckedAt, listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { getState } from '../../db/repositories/crawlerState.repo.js';
 import { getInt } from '../../db/repositories/settings.repo.js';
-import { dueWebsites, runDueChecks } from '../../crawler/index.js';
+import { runPipeline } from '../../monitor/index.js';
+import { reportStatus } from '../../monitor/report.js';
 import { asyncHandler } from '../middleware/errors.js';
 
 export const statusRoutes = Router();
@@ -18,20 +19,21 @@ statusRoutes.get(
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [state, websites, workers, checkedAt, errors24h, new24h, new7d, recentPosts, recentErrors, tick, due] =
+    const [state, websites, workers, checkedAt, errors24h, recentChanges, recentErrors, tick, report, usage7d] =
       await Promise.all([
         getState(),
         countsByStatus(),
         countWorkers(),
         lastCheckedAt(),
         countErrorsSince(since24h),
-        countRecent(since24h),
-        countRecent(since7d),
-        listPosts({ limit: 8 }),
+        listChanges({ limit: 8 }),
         listLogs({ onlyErrors: true, limit: 8 }),
         getInt('scheduler_tick', 15),
-        dueWebsites(),
+        reportStatus(),
+        usageSince(since7d),
       ]);
+
+    const reportable = recentChanges.filter((change) => ['NEW', 'UPDATED'].includes(change.change_type));
 
     // The crawler is considered alive while its heartbeat is recent.
     const heartbeat = state.last_heartbeat_at ? new Date(state.last_heartbeat_at).getTime() : 0;
@@ -48,13 +50,13 @@ statusRoutes.get(
         last_heartbeat_at: state.last_heartbeat_at,
         pid: state.pid,
         embedded: config.crawler.runInWeb,
-        due_now: due.length,
       },
       websites,
       workers,
       checks: { last_checked_at: checkedAt, errors_24h: errors24h },
-      posts: { new_24h: new24h, new_7d: new7d },
-      recent_posts: recentPosts,
+      report,
+      usage_7d: usage7d,
+      recent_changes: reportable,
       recent_errors: recentErrors,
       mail: { transport: config.mail.transport, from: config.mail.from },
       brand: { name: config.brand.name, credit: config.brand.credit },
@@ -63,12 +65,20 @@ statusRoutes.get(
   }),
 );
 
-/** Manual "check everything that is due right now". */
+/** Manual "crawl and analyse everything right now". Sends no email. */
 statusRoutes.post(
   '/run-now',
   asyncHandler(async (req, res) => {
-    const outcome = await runDueChecks();
-    res.json({ ok: true, ...outcome });
+    const outcome = await runPipeline();
+    res.json({
+      ok: true,
+      websites: outcome.crawl.websites,
+      pagesChanged: outcome.crawl.pagesChanged,
+      analyzed: outcome.analysis.analyzed,
+      reported: outcome.analysis.reported,
+      failed: outcome.crawl.failed,
+      errors: outcome.analysis.errors,
+    });
   }),
 );
 

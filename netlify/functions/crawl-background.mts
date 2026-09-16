@@ -2,58 +2,57 @@
 process.env.DB_DRIVER ||= 'postgres';
 
 /**
- * The actual crawl. Background functions get 15 minutes instead of the 30
- * seconds a scheduled function gets, which is what makes 27 websites -some of
- * them slow- finish comfortably in one pass.
+ * The full pass: crawl the 28 websites, let Claude judge whatever moved, and
+ * send the morning report if its hour has arrived.
  *
- * Invoked by crawl-scheduled; it returns 202 immediately and keeps working.
+ * Background functions get 15 minutes instead of the 30 seconds a scheduled
+ * function gets, which is what makes fetching a dozen pages from each of 28
+ * sites - some of them slow - finish comfortably in one go.
+ *
+ * Invoked by crawl-scheduled, which returns immediately.
  */
-export default async (req: Request) => {
+export default async () => {
   const startedAt = Date.now();
 
   try {
-    const [bootstrap, crawler, settings, state, digest] = await Promise.all([
+    const [bootstrap, monitor, settings, state] = await Promise.all([
       import('../../src/bootstrap.js'),
-      import('../../src/crawler/index.js'),
+      import('../../src/monitor/index.js'),
       import('../../src/db/repositories/settings.repo.js'),
       import('../../src/db/repositories/crawlerState.repo.js'),
-      import('../../src/notifications/digest.js'),
     ]);
 
     await bootstrap.ensureReady({ log: console.log });
 
     if (!(await settings.getBool('crawler_enabled', true))) {
       await state.updateState({ status: 'paused', last_heartbeat_at: new Date().toISOString() });
+      console.log('[crawl] crawler desactivado en la configuración');
       return;
     }
 
-    await state.updateState({ status: 'running', last_heartbeat_at: new Date().toISOString() });
-
-    const outcome = await crawler.runDueChecks({
-      concurrency: await settings.getInt('crawler_concurrency', 8),
-    });
-
-    await state.updateState({
-      status: 'idle',
-      last_run_at: new Date().toISOString(),
-      last_run_duration_ms: Date.now() - startedAt,
-      last_heartbeat_at: new Date().toISOString(),
-      next_run_at: null,
-    });
+    const { pipeline, report } = await monitor.runScheduledPass({ now: new Date() });
 
     console.log(
-      `[crawl] ${outcome.checked} website(s), ${outcome.newItems} new item(s), ${outcome.failed} error(s) in ${
-        Date.now() - startedAt
-      }ms`,
+      `[crawl] ${pipeline.crawl.websites} web(s), ${pipeline.crawl.pagesChanged} página(s) con cambios, ` +
+        `${pipeline.analysis.analyzed} analizada(s) en ${pipeline.analysis.batches} llamada(s), ` +
+        `${pipeline.analysis.reported} para el informe, ${pipeline.crawl.failed} error(es) ` +
+        `en ${Date.now() - startedAt}ms`,
     );
+    if (pipeline.analysis.usage.input) {
+      console.log(
+        `[claude] ${pipeline.analysis.usage.input} tokens de entrada ` +
+          `(${pipeline.analysis.usage.cached} desde caché), ${pipeline.analysis.usage.output} de salida`,
+      );
+    }
+    for (const error of pipeline.analysis.errors) console.error(`[claude] ${error}`);
 
-    // The report goes out on the pass that runs after its hour.
-    if (await digest.digestDue()) {
-      const sent = await digest.sendDigest();
-      if (sent.sent) console.log(`[digest] sent ${sent.posts} item(s) in ${sent.sections} section(s)`);
+    if (report?.sent) {
+      console.log(`[informe] enviado el del ${report.date}: ${report.changes} cambio(s)`);
+    } else if (report?.reason && report.reason !== 'not-due') {
+      console.log(`[informe] no enviado: ${report.reason}`);
     }
   } catch (error) {
     const details = error instanceof Error ? error : new Error(String(error));
-    console.error('[crawl] failed:', details.stack ?? details.message);
+    console.error('[crawl] falló:', details.stack ?? details.message);
   }
 };

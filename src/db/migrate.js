@@ -4,6 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { config } from '../config/index.js';
 import { getDb } from './index.js';
 import { POSTGRES_SCHEMA, POSTGRES_SCHEMA_NAME } from './schema.postgres.js';
+import {
+  MONITOR_SCHEMA_NAME,
+  MONITOR_SCHEMA_POSTGRES,
+  MONITOR_SCHEMA_SQLITE,
+} from './schema.monitor.js';
 
 // NOT named __dirname: bundlers for serverless (Netlify) inject their own
 // __dirname, and two declarations in the same scope are a SyntaxError that
@@ -24,24 +29,27 @@ async function runPostgresMigrations({ log }) {
     applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
 
-  const existing = await db.get('SELECT name FROM schema_migrations WHERE name = ?', [
-    POSTGRES_SCHEMA_NAME,
-  ]);
-  const tableExists = await db.get(
-    "SELECT to_regclass('public.websites') IS NOT NULL AS present",
-  );
-  if (existing && tableExists?.present) {
-    log('[db] schema up to date');
-    return [];
+  const applied = [];
+  const steps = [
+    { name: POSTGRES_SCHEMA_NAME, sql: POSTGRES_SCHEMA, guard: 'public.websites' },
+    { name: MONITOR_SCHEMA_NAME, sql: MONITOR_SCHEMA_POSTGRES, guard: 'public.pages' },
+  ];
+
+  for (const step of steps) {
+    const recorded = await db.get('SELECT name FROM schema_migrations WHERE name = ?', [step.name]);
+    const present = await db.get('SELECT to_regclass(?) IS NOT NULL AS present', [step.guard]);
+    if (recorded && present?.present) continue;
+
+    await db.exec(step.sql);
+    await db.run('INSERT INTO schema_migrations (name) VALUES (?) ON CONFLICT (name) DO NOTHING', [
+      step.name,
+    ]);
+    log(`[db] applied migration ${step.name}`);
+    applied.push(step.name);
   }
 
-  await db.exec(POSTGRES_SCHEMA);
-  await db.run(
-    'INSERT INTO schema_migrations (name) VALUES (?) ON CONFLICT (name) DO NOTHING',
-    [POSTGRES_SCHEMA_NAME],
-  );
-  log(`[db] applied migration ${POSTGRES_SCHEMA_NAME}`);
-  return [POSTGRES_SCHEMA_NAME];
+  if (!applied.length) log('[db] schema up to date');
+  return applied;
 }
 
 /**
