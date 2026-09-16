@@ -73,6 +73,60 @@ function extractByStructure($, baseUrl) {
 }
 
 /**
+ * Second structural pass, for listings whose entries are NOT links: match
+ * calendars, results tables, fixture lists. Groups sibling elements that carry
+ * comparable amounts of text and keeps the biggest repeated group.
+ *
+ * Entries like these have no URL of their own, which is fine: an item is
+ * identified by its text, so "FFSP - Rival, 20/09/2026" is recognised as the
+ * same entry on every later check and only alerts once.
+ */
+function extractByRepeatedText($, baseUrl) {
+  // Key by the parent node itself: entries of one listing are siblings.
+  const groups = new Map();
+
+  $('tr, li, article, div, section').each((_, element) => {
+    const $el = $(element);
+    if ($el.closest('nav, header, footer, form').length) return;
+    // Only leaf-ish blocks: the wrapper holding the whole list is not an entry.
+    if ($el.find('tr, li, article').length) return;
+
+    const text = cleanText($el.text());
+    if (text.length < 15 || text.length > 400) return;
+
+    const parent = $el.parent().get(0);
+    if (!parent) return;
+    const key = `${element.tagName}`;
+    if (!groups.has(parent)) groups.set(parent, new Map());
+    const byTag = groups.get(parent);
+    if (!byTag.has(key)) byTag.set(key, []);
+    byTag.get(key).push({ $el, text });
+  });
+
+  let best = [];
+  let bestScore = 0;
+  for (const byTag of groups.values()) {
+    for (const entries of byTag.values()) {
+      if (entries.length < 2) continue;
+      // A fixture list almost always carries dates, times or scores: prefer the
+      // group whose entries look like data over a decorative one.
+      const withNumbers = entries.filter((entry) => /\d/.test(entry.text)).length;
+      const score = entries.length + withNumbers * 2;
+      if (score > bestScore) {
+        bestScore = score;
+        best = entries;
+      }
+    }
+  }
+  if (best.length < 2) return [];
+
+  return best.map(({ $el, text }) => {
+    const href = $el.find('a').first().attr('href') || null;
+    return toItem({ title: text, url: href, publishedAt: pickDate($el), excerpt: null }, baseUrl);
+  });
+}
+
+/**
  * Extracts publications from an HTML document.
  * `selectors` may define: list, title, link, date. Anything missing falls back
  * to a generic heuristic, so a new website works before it is fine-tuned.
@@ -93,7 +147,10 @@ export function extractFromHtml(html, baseUrl, selectors = {}) {
     }
   }
   if (!nodes || !nodes.length) {
-    return selectors.list ? [] : dedupeItems(extractByStructure($, baseUrl).filter(Boolean)).slice(0, 100);
+    if (selectors.list) return [];
+    const byLinks = dedupeItems(extractByStructure($, baseUrl).filter(Boolean));
+    if (byLinks.length) return byLinks.slice(0, 100);
+    return dedupeItems(extractByRepeatedText($, baseUrl).filter(Boolean)).slice(0, 100);
   }
 
   const items = nodes
@@ -116,7 +173,9 @@ export function extractFromHtml(html, baseUrl, selectors = {}) {
   // The container matched but yielded nothing usable (a wrapper <article>, a
   // card grid with no links...): fall back to the structural scan.
   if (!found.length && !selectors.list) {
-    return dedupeItems(extractByStructure($, baseUrl).filter(Boolean)).slice(0, 100);
+    const byLinks = dedupeItems(extractByStructure($, baseUrl).filter(Boolean));
+    if (byLinks.length) return byLinks.slice(0, 100);
+    return dedupeItems(extractByRepeatedText($, baseUrl).filter(Boolean)).slice(0, 100);
   }
   return found;
 }

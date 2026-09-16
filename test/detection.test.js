@@ -109,3 +109,51 @@ test('the inspector reports a client-rendered page instead of guessing', async (
   assert.ok(inspection.candidates.some((candidate) => candidate.selector === 'article'));
   assert.ok(inspection.links.some((link) => link.text.includes('Una noticia del club')));
 });
+
+test('detects a fixture calendar whose entries are not links', () => {
+  // What a small club site looks like: a table of matches, no <article>, no
+  // links, no feed. The entry's identity is its own text.
+  const html = `<html><body>
+    <nav><a href="/">Inicio</a><a href="/calendario">Calendario</a></nav>
+    <main><h1>Calendario</h1>
+      <table><tbody>
+        <tr><td>Jornada 1</td><td>FFSP - Atlético Baleares</td><td>20/09/2026 17:00</td></tr>
+        <tr><td>Jornada 2</td><td>Mallorca B - FFSP</td><td>27/09/2026 12:00</td></tr>
+        <tr><td>Jornada 3</td><td>FFSP - Son Sardina</td><td>04/10/2026 16:30</td></tr>
+      </tbody></table>
+    </main></body></html>`;
+
+  const items = extractFromHtml(html, 'https://ffsp.info/calendario', {});
+  assert.equal(items.length, 3);
+  assert.match(items[0].title, /FFSP - Atlético Baleares/);
+  assert.match(items[0].title, /20\/09\/2026/);
+
+  // The same page checked again must produce the same identities, so a match
+  // already seen is never alerted twice.
+  const again = extractFromHtml(html, 'https://ffsp.info/calendario', {});
+  assert.deepEqual(
+    again.map((item) => item.contentHash),
+    items.map((item) => item.contentHash),
+  );
+});
+
+test('a new fixture added to the calendar is a new item', () => {
+  const page = (rows) =>
+    `<html><body><main><table><tbody>${rows}</tbody></table></main></body></html>`;
+  const before = page(
+    '<tr><td>FFSP - Atlético Baleares</td><td>20/09/2026</td></tr>' +
+      '<tr><td>Mallorca B - FFSP</td><td>27/09/2026</td></tr>',
+  );
+  const after = page(
+    '<tr><td>FFSP - Atlético Baleares</td><td>20/09/2026</td></tr>' +
+      '<tr><td>Mallorca B - FFSP</td><td>27/09/2026</td></tr>' +
+      '<tr><td>FFSP - Son Sardina</td><td>04/10/2026</td></tr>',
+  );
+
+  const hashesBefore = extractFromHtml(before, 'https://ffsp.info/calendario', {}).map((i) => i.contentHash);
+  const itemsAfter = extractFromHtml(after, 'https://ffsp.info/calendario', {});
+  const added = itemsAfter.filter((item) => !hashesBefore.includes(item.contentHash));
+
+  assert.equal(added.length, 1);
+  assert.match(added[0].title, /Son Sardina/);
+});
