@@ -55,6 +55,9 @@ function textBody(report, groups) {
     report.total_changes
       ? `${plural(report.total_changes, 'cambio relevante detectado', 'cambios relevantes detectados')}`
       : 'Sin cambios relevantes',
+    ...(report.backlog
+      ? [`(${plural(report.backlog, 'viene de días anteriores', 'vienen de días anteriores')}, pendiente de informar)`]
+      : []),
     '',
   ];
 
@@ -63,6 +66,9 @@ function textBody(report, groups) {
     for (const item of group.items) {
       lines.push(`${item.website} — ${item.type === 'NEW' ? 'Nuevo' : 'Actualizado'}`);
       if (item.title) lines.push(item.title);
+      if (item.change_date && item.change_date < report.date) {
+        lines.push(`[atrasado: del ${item.change_date}]`);
+      }
       if (item.summary) lines.push(item.summary);
       if (item.what_changed) lines.push('', `Qué cambió: ${item.what_changed}`);
       if (item.previous_value && item.new_value) {
@@ -122,6 +128,13 @@ function htmlBody(report, groups) {
           : 'Sin cambios relevantes'
       }
     </div>
+    ${
+      report.backlog
+        ? `<div style="font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#6b7280;padding:6px 0 0">
+             ${escapeHtml(plural(report.backlog, 'viene de días anteriores', 'vienen de días anteriores'))}, pendiente de informar
+           </div>`
+        : ''
+    }
   </td></tr>
   ${sections}
   <tr><td style="padding:26px 30px 0">
@@ -168,7 +181,9 @@ function card(item, group) {
   return `<tr><td style="padding:0 30px 12px">
     <div style="border-left:3px solid ${group.colour};padding:2px 0 2px 14px">
       <div style="font:600 11px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase">
-        ${escapeHtml(item.website)} &middot; ${label}
+        ${escapeHtml(item.website)} &middot; ${label}${
+          item.stale ? ` &middot; <span style="color:#ea580c">del ${escapeHtml(item.change_date)}</span>` : ''
+        }
       </div>
       <div style="font:600 16px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111114;padding-top:6px">
         ${
@@ -195,10 +210,15 @@ function card(item, group) {
 }
 
 export function buildReportEmail(report, { timeZone } = {}) {
-  const changes = report.payload?.changes ?? [];
+  const date = report.date ?? report.report_date ?? report.payload?.date ?? '';
+  // A change carried over from an earlier day is flagged, so nobody has to
+  // wonder why something from last Tuesday is in this morning's email.
+  const changes = (report.payload?.changes ?? []).map((change) => ({
+    ...change,
+    stale: Boolean(change.change_date && change.change_date < date),
+  }));
   const groups = groupByPriority(changes);
 
-  const date = report.date ?? report.report_date ?? report.payload?.date ?? '';
   const subject = report.total_changes
     ? `Informe diario · ${report.total_changes} cambio${report.total_changes === 1 ? '' : 's'}` +
       (report.high_priority ? ` (${report.high_priority} alta)` : '') +
@@ -208,6 +228,7 @@ export function buildReportEmail(report, { timeZone } = {}) {
   const shaped = {
     ...report,
     date,
+    backlog: report.backlog ?? report.payload?.pending_from_previous_days ?? 0,
     websitesQuiet: report.websitesQuiet ?? report.websites_quiet ?? 0,
     websitesTotal: report.websitesTotal ?? report.websites_total ?? 0,
     daily_summary: report.daily_summary ?? report.payload?.daily_summary ?? '',

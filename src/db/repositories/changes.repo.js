@@ -53,12 +53,60 @@ export async function recordChange(change, { at = nowIso() } = {}) {
 }
 
 /**
- * The changes that belong to one calendar day.
+ * Everything a report for `date` should carry: that day's changes, PLUS any
+ * relevant change from an earlier day that has never actually been emailed.
  *
- * `change_date` is the day the content changed, computed from the capture
- * window - not the day a row happened to be written, and not the day the page
- * says it was published. A 2025 article edited yesterday belongs to
- * yesterday; a 2025 article merely re-found yesterday has no row at all.
+ * The second half is the whole point. A change is dated by when it could have
+ * happened, so a missed crawl - a site down, a failed function, a deploy -
+ * files it under an older day. Selecting `change_date = ?` meant that change
+ * was invisible to every report that came after, permanently. Now nothing can
+ * fall through: a change leaves the pending set only when a report that
+ * actually went out claimed it.
+ *
+ * `reported_in` is that claim, and it is written only after a successful send
+ * (see sendDailyReport). The `reported_in = ?` arm keeps re-sending one date's
+ * report idempotent: it reproduces the same content instead of dropping the
+ * changes it already delivered.
+ *
+ * @param {object} options
+ * @param {string} options.date      the day the report covers
+ * @param {number|null} options.reportId  the stored report for that day, if any
+ */
+export async function changesForReport({ date, reportId = null, types = REPORTABLE } = {}) {
+  const db = await getDb();
+  const placeholders = types.map(() => '?').join(', ');
+  return db.all(
+    `SELECT c.*, w.name AS website_name, w.url AS website_url
+     FROM detected_changes c
+     JOIN websites w ON w.id = c.website_id
+     WHERE c.change_type IN (${placeholders})
+       AND c.change_date <= ?
+       AND (c.reported_in IS NULL OR c.reported_in = ?)
+     ORDER BY CASE c.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
+              c.change_date, w.name, c.id`,
+    [...types, date, reportId],
+  );
+}
+
+/** How many changes the next report would carry, backlog included. */
+export async function countPendingForReport({ date, reportId = null, types = REPORTABLE } = {}) {
+  const db = await getDb();
+  const placeholders = types.map(() => '?').join(', ');
+  const row = await db.get(
+    `SELECT COUNT(*) AS n FROM detected_changes
+     WHERE change_type IN (${placeholders})
+       AND change_date <= ?
+       AND (reported_in IS NULL OR reported_in = ?)`,
+    [...types, date, reportId],
+  );
+  return num(row?.n);
+}
+
+/**
+ * The changes that belong to one calendar day, and only that day.
+ *
+ * Used where the question really is "what happened on this date" - not for
+ * building a report, which must also sweep up the backlog above.
  */
 export async function changesForDate(date, { types = REPORTABLE } = {}) {
   const db = await getDb();
@@ -115,6 +163,11 @@ export async function getChange(id) {
   );
 }
 
+/**
+ * Marks changes as delivered. Called only after an email has actually left,
+ * never at build time: a report that was previewed, or built and then failed
+ * to send, must leave its changes pending.
+ */
 export async function attachToReport(ids, reportId) {
   if (!ids.length) return 0;
   const db = await getDb();

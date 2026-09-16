@@ -2,7 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { getAllSettings, getSetting } from '../db/repositories/settings.repo.js';
-import { attachToReport, changesForDate } from '../db/repositories/changes.repo.js';
+import {
+  attachToReport,
+  changesForReport,
+  countPendingForReport,
+} from '../db/repositories/changes.repo.js';
 import { listWebsites } from '../db/repositories/websites.repo.js';
 import { getReport, lastSentDate, markFailed, markSent, saveReport } from '../db/repositories/reports.repo.js';
 import { activeRecipients } from '../notifications/notifier.js';
@@ -51,12 +55,19 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
   const reportDate = date || previousDate(zone);
   const window = dayWindow(reportDate, zone);
 
-  const changes = await changesForDate(reportDate);
+  // The report a previous run may already have stored for this date. Its id
+  // is what lets a re-send reproduce the same content instead of dropping the
+  // changes it already delivered.
+  const existing = await getReport(reportDate);
+  const changes = await changesForReport({ date: reportDate, reportId: existing?.id ?? null });
   const websites = await listWebsites({ activeOnly: true });
 
   const withChanges = new Set(changes.map((change) => change.website_id));
   const counts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
   for (const change of changes) counts[change.priority] = (counts[change.priority] ?? 0) + 1;
+  // Anything older than the day being reported is a change an earlier report
+  // should have carried and did not. Counted so the email can say so.
+  const backlog = changes.filter((change) => change.change_date < reportDate).length;
 
   const items = changes
     .slice()
@@ -76,6 +87,7 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
       what_changed: change.what_changed ?? '',
       previous_value: change.previous_value ?? '',
       new_value: change.new_value ?? '',
+      change_date: change.change_date,
     }));
 
   const summary = await writeDailySummary(items, {
@@ -91,6 +103,7 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
     medium_priority: counts.MEDIUM,
     low_priority: counts.LOW,
     changes: items.map(({ id, ...rest }) => rest),
+    pending_from_previous_days: backlog,
     daily_summary: summary.text,
   };
 
@@ -111,13 +124,14 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
     outputTokens: summary.usage.output,
   });
 
-  await attachToReport(
-    items.map((item) => item.id),
-    saved.id,
-  );
+  // Deliberately NOT marked as reported here. A report that is only built -
+  // a preview, or one whose send then fails - must leave its changes pending,
+  // or they vanish from every later report exactly as they used to.
 
   return {
     ...saved,
+    changeIds: items.map((item) => item.id),
+    backlog,
     // The stored column is report_date; everything downstream reads `date`.
     date: reportDate,
     payload,
@@ -201,6 +215,9 @@ export async function sendDailyReport({ date, force = false, now = new Date() } 
 
   const report = await buildReport({ date: reportDate, timeZone: zone });
 
+  // A quiet day means the report really is empty. It cannot be reached while
+  // anything is still pending, because buildReport now sweeps the backlog into
+  // this very report - so "Sin cambios" can never go out over unsent changes.
   const quietDay = report.total_changes === 0;
   if (quietDay && !force && !(await getSetting('report_send_when_empty', 'true')).startsWith('t')) {
     await markSent(reportDate, []);
@@ -217,11 +234,16 @@ export async function sendDailyReport({ date, force = false, now = new Date() } 
 
   try {
     const info = await sendMail({ to: recipients, ...email });
+    // Only now are the changes spent. The order matters: the mail has left,
+    // so claiming them cannot lose anything, and if the send had thrown they
+    // would still be waiting for the next report.
     await markSent(reportDate, recipients);
+    await attachToReport(report.changeIds ?? [], report.id);
     return {
       sent: true,
       date: reportDate,
       changes: report.total_changes,
+      backlog: report.backlog ?? 0,
       high: report.high_priority,
       medium: report.medium_priority,
       low: report.low_priority,
@@ -241,6 +263,8 @@ export async function reportStatus(now = new Date()) {
   const hour = Number(settings.digest_hour ?? 7);
   const lastSent = await lastSentDate();
   const target = previousDate(zone, now);
+  const existing = await getReport(target);
+  const pending = await countPendingForReport({ date: target, reportId: existing?.id ?? null });
 
   return {
     timezone: zone,
@@ -248,10 +272,11 @@ export async function reportStatus(now = new Date()) {
     covers_date: target,
     last_sent_date: lastSent,
     due: reportDue({ timeZone: zone, hour, lastSentDate: lastSent, now }),
-    pending_changes: (await changesForDate(target)).length,
+    // Backlog included: this is what the next email would actually carry.
+    pending_changes: pending,
     // The dashboard used to call this pending_items; kept so an older cached
     // script cannot show a blank number.
-    pending_items: (await changesForDate(target)).length,
+    pending_items: pending,
   };
 }
 
