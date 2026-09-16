@@ -84,6 +84,13 @@ export function createApp() {
   // The dashboard shell carries no data, so it is always public - exactly how
   // Netlify serves it, straight from the CDN. Access control lives on /api.
   app.get('/', (req, res) => res.sendFile(path.join(WEB_DIR, 'index.html')));
+
+  // Legal pages, served without the .html so the footer links stay tidy. On
+  // Netlify the CDN does this on its own; here it needs saying out loud.
+  for (const page of ['legal', 'terminos', 'privacidad', 'cookies']) {
+    app.get(`/${page}`, (req, res) => res.sendFile(path.join(WEB_DIR, `${page}.html`)));
+  }
+
   app.use(express.static(WEB_DIR, { index: false }));
 
   app.use('/api', notFound);

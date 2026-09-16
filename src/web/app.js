@@ -293,7 +293,6 @@ async function refreshStatus() {
 
   if (data.brand?.credit) {
     $('#footer-credit').textContent = data.brand.credit;
-    $('#sidebar-credit').textContent = data.brand.credit;
   }
 
   await refreshDigest().catch(() => {});
@@ -539,57 +538,22 @@ async function inspectSite(values, output) {
 }
 
 /** Paste a list of clubs and create them all at once. */
-function importModal() {
-  openModal({
-    title: 'Importar lista de webs',
-    fields: [
-      {
-        name: 'text',
-        label: 'Pega la lista',
-        type: 'textarea',
-        placeholder: 'Albatross\nhttps://www.albatrossgolfklubb.se/\nÅkersberga\nhttps://akersbergagk.se/',
-        hint: 'Un nombre y su dirección, o las dos cosas en la misma línea. Las repetidas se ignoran.',
-      },
-      {
-        name: 'check_interval',
-        label: 'Cada cuánto comprobarlas (segundos)',
-        type: 'number',
-        min: 10,
-        max: 86400,
-        value: state.settings.default_check_interval ?? 600,
-      },
-    ],
-    submitLabel: 'Importar',
-    onSubmit: async (values) => {
-      const result = await api('/websites/import', {
-        method: 'POST',
-        body: { text: values.text, check_interval: Number(values.check_interval) },
-      });
-      const parts = [`${result.created.length} añadidas`];
-      if (result.skipped.length) parts.push(`${result.skipped.length} ya estaban`);
-      if (result.failed.length) parts.push(`${result.failed.length} con error`);
-      if (result.unparsed.length) parts.push(`${result.unparsed.length} líneas ilegibles`);
-      toast(parts.join(' · '), result.created.length ? 'ok' : 'err');
-      await loadWebsites();
-      refreshStatus();
-    },
-  });
-}
-
+/**
+ * Editing only. Websites are published from src/config/sites.js, so there is
+ * no "new website" branch here and no endpoint that would accept one.
+ */
 function websiteModal(website) {
   openModal({
-    title: website ? `Editar ${website.name}` : 'Añadir web',
-    fields: websiteFields(website ?? {}),
-    submitLabel: website ? 'Guardar cambios' : 'Añadir',
+    title: `Editar ${website.name}`,
+    fields: websiteFields(website),
+    submitLabel: 'Guardar cambios',
     secondary: [
       { label: 'Probar detección', onClick: previewDetection },
       { label: 'Diagnóstico', onClick: inspectSite, pending: 'Leyendo la página…' },
     ],
     onSubmit: async (values) => {
-      const payload = toWebsitePayload(values);
-      if (website) await api(`/websites/${website.id}`, { method: 'PUT', body: payload });
-      else await api('/websites', { method: 'POST', body: payload });
-      toast(website ? 'Web actualizada' : 'Web añadida', 'ok');
+      await api(`/websites/${website.id}`, { method: 'PUT', body: toWebsitePayload(values) });
+      toast('Web actualizada', 'ok');
       await loadWebsites();
       refreshStatus();
     },
@@ -603,7 +567,7 @@ async function loadWebsites() {
 
   if (!websites.length) {
     body.replaceChildren(
-      el('tr', {}, [el('td', { colSpan: 7, className: 'empty', textContent: 'No hay webs. Añade la primera.' })]),
+      el('tr', {}, [el('td', { colSpan: 5, className: 'empty', textContent: 'La lista de webs está vacía.' })]),
     );
     return;
   }
@@ -653,23 +617,33 @@ async function loadWebsites() {
       const historyBtn = el('button', { className: 'btn-sm', textContent: 'Historial' });
       historyBtn.addEventListener('click', () => showHistory(website));
 
-      const deleteBtn = el('button', { className: 'btn-sm btn-danger', textContent: 'Eliminar' });
-      deleteBtn.addEventListener('click', async () => {
-        if (!confirmDialog(`¿Eliminar "${website.name}" y todo su historial?`)) return;
-        await api(`/websites/${website.id}`, { method: 'DELETE' });
-        toast('Web eliminada', 'ok');
-        await loadWebsites();
-        refreshStatus();
-      });
-      actions.append(checkBtn, ' ', historyBtn, ' ', editBtn, ' ', toggleBtn, ' ', deleteBtn);
+      actions.append(el('div', { className: 'row-actions' }, [checkBtn, historyBtn, editBtn, toggleBtn]));
 
       return el('tr', {}, [
         el('td', {}, [
-          el('div', { style: 'font-weight:600', textContent: website.name }),
-          el('a', { href: website.url, target: '_blank', rel: 'noopener', className: 'mono', textContent: website.url }),
-          el('div', { className: 'hint', textContent: `${website.detection_method} · ${website.posts_count} publicaciones` }),
+          el('div', { className: 'strong', textContent: website.name }),
+          el('a', {
+            href: website.url,
+            target: '_blank',
+            rel: 'noopener',
+            className: 'mono cell-url',
+            title: website.url,
+            textContent: website.url,
+          }),
+          el('div', {
+            className: 'hint',
+            textContent: `${website.detection_method} · ${website.posts_count} publicaciones · cada ${fmtDuration(website.check_interval)}`,
+          }),
         ]),
-        el('td', {}, [dot(statusDot), statusText]),
+        el('td', {}, [
+          el('span', { className: `badge ${statusDot === 'ok' ? 'ok' : statusDot === 'err' ? 'bad' : 'mute'}` }, [
+            dot(statusDot),
+            ` ${statusText}`,
+          ]),
+          website.error_count
+            ? el('div', { className: 'hint', textContent: `${website.error_count} error(es) · ${(website.last_error || '').slice(0, 60)}` })
+            : '',
+        ]),
         el('td', { className: 'muted' }, [
           el('div', { textContent: fmtAgo(website.last_checked_at) }),
           el('div', { className: 'hint', textContent: fmtDateTime(website.last_checked_at) }),
@@ -678,11 +652,6 @@ async function loadWebsites() {
           el('div', { textContent: website.last_new_item_title || '—' }),
           el('div', { className: 'hint', textContent: fmtDateTime(website.last_new_item_at) }),
         ]),
-        el('td', {}, [
-          el('div', { textContent: String(website.error_count) }),
-          website.last_error ? el('div', { className: 'hint', textContent: website.last_error.slice(0, 80) }) : '',
-        ]),
-        el('td', { textContent: fmtDuration(website.check_interval) }),
         actions,
       ]);
     }),
@@ -966,7 +935,7 @@ function showPage(page) {
     users: 'Usuarios',
     settings: 'Configuración',
   };
-  $('#page-title').textContent = titles[page] ?? '';
+  document.title = titles[page] ? `${titles[page]} · Web Monitor` : 'Web Monitor';
   for (const tab of document.querySelectorAll('.nav-item')) {
     tab.classList.toggle('active', tab.dataset.page === page);
   }
@@ -1044,8 +1013,6 @@ async function init() {
     }
   });
 
-  $('#add-website').addEventListener('click', () => websiteModal(null));
-  $('#import-websites').addEventListener('click', () => importModal());
   $('#add-worker').addEventListener('click', () => workerModal(null));
   $('#add-user').addEventListener('click', () => userModal());
   $('#activity-filter').addEventListener('change', () => loadActivity());

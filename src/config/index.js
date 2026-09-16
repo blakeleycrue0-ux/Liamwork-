@@ -109,12 +109,15 @@ export const config = {
   },
 
   seed: {
-    websiteName: process.env.SEED_WEBSITE_NAME || 'FFSP',
-    // `??` on purpose: setting the variable to an empty string disables the
-    // seed, which is how tests (and anyone who wants an empty install) opt out.
-    websiteUrl: process.env.SEED_WEBSITE_URL ?? 'https://ffsp.info',
-    websiteInterval: int(process.env.SEED_WEBSITE_INTERVAL, 60),
+    // Publish the code-managed list (src/config/sites.js) on boot. Tests turn
+    // it off so they start from an empty table.
+    watched: bool(process.env.SEED_WATCHED_SITES, true),
+    // Six hours: short enough that both of the day's scheduled runs find every
+    // site due, long enough that a manual run does not re-read all 27 at once.
+    websiteInterval: int(process.env.SEED_WEBSITE_INTERVAL, 21600),
     workerName: process.env.SEED_WORKER_NAME || 'Test Worker',
+    // `??` on purpose: an empty string disables the seed, which is how tests
+    // (and anyone who wants an empty install) opt out.
     workerEmail: process.env.SEED_WORKER_EMAIL ?? 'cruecrv9445@gmail.com',
   },
 };

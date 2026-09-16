@@ -57,11 +57,13 @@ test('writes work without a CSRF token, since there is no session cookie', async
   });
   assert.equal(created.status, 201);
 
+  // Websites are the exception, and not because of CSRF: they simply cannot be
+  // created over the API at all. The list lives in src/config/sites.js.
   const added = await call('/api/websites', {
     method: 'POST',
     body: { name: 'Otra web', url: 'https://example.org', check_interval: 120 },
   });
-  assert.equal(added.status, 201);
+  assert.equal(added.status, 404);
 });
 
 test('there is no login page: /login lands on the dashboard', async () => {
@@ -86,4 +88,18 @@ test('a leftover SUPABASE_URL does not resurrect the login', async () => {
 
   const response = await call('/api/websites');
   assert.equal(response.status, 200);
+});
+
+test('the legal pages are served without the .html suffix', async () => {
+  for (const [route, heading] of [
+    ['/legal', 'Aviso legal'],
+    ['/terminos', 'Términos de uso'],
+    ['/privacidad', 'Política de privacidad'],
+    ['/cookies', 'Política de cookies'],
+  ]) {
+    const response = await call(route);
+    assert.equal(response.status, 200, `${route} responds`);
+    const body = await response.text();
+    assert.ok(body.includes(`<h1>${heading}</h1>`), `${route} is the right page`);
+  }
 });

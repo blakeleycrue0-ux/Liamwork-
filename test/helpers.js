@@ -14,6 +14,7 @@ export function useTempDatabase(name) {
   process.env.ADMIN_PASSWORD = 'test-password';
   process.env.RUN_SCHEDULER_IN_WEB = 'false';
   process.env.SEED_WEBSITE_URL = '';
+  process.env.SEED_WATCHED_SITES = 'false';
   process.env.SEED_WORKER_EMAIL = '';
   return () => fs.rmSync(dir, { recursive: true, force: true });
 }

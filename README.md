@@ -217,12 +217,20 @@ las describen. Esos selectores se escriben en el formulario, así que a partir d
 guardarlos las comprobaciones vuelven a ser scraping normal: sin tokens, sin
 latencia y sin coste por minuto.
 
-### Importar muchas webs de golpe
+### La lista de webs vive en el código
 
-En *Webs → Importar lista* se pega la lista tal cual, con el nombre del sitio y
-su dirección (en dos líneas o en la misma), y se crean todas de una vez. Las
-direcciones repetidas se ignoran, y una línea ilegible se reporta sin tumbar el
-resto de la importación.
+Las páginas vigiladas están escritas en `src/config/sites.js`, no en el
+dashboard. Al arrancar, `src/bootstrap.js` da de alta las que falten en la base
+de datos y desactiva las que se hayan retirado, así que la lista de la
+aplicación y la del código no pueden separarse.
+
+Para añadir o quitar una web se edita ese fichero y se despliega: el panel no
+tiene botón de "añadir" ni de "eliminar". Desde el dashboard sí se puede
+comprobar una web al momento, ver su historial, ajustar cómo se lee (selectores,
+intervalo, método) y desactivarla temporalmente.
+
+Si hace falta saltarse el alta automática -en los tests, por ejemplo-, basta con
+`SEED_WATCHED_SITES=false`.
 
 ### Reparación automática
 

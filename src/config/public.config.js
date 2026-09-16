@@ -13,7 +13,7 @@ export const publicConfig = {
   // Shown in the dashboard footer and at the bottom of every email.
   brand: {
     name: 'Web Monitor',
-    credit: 'Hecho por Blakeley · Web Monitor',
+    credit: 'Hecho por Crue Bryn Blakley',
   },
 
   // 'none'     -> el dashboard es accesible sin iniciar sesion

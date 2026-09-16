@@ -1,7 +1,8 @@
 import { config, validateConfig } from './config/index.js';
 import { getDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
-import { createWebsite, listWebsites } from './db/repositories/websites.repo.js';
+import { createWebsite, listWebsites, setActive } from './db/repositories/websites.repo.js';
+import { RETIRED_SITES, WATCHED_SITES } from './config/sites.js';
 import { createWorker, listWorkers } from './db/repositories/workers.repo.js';
 import { setSettings } from './db/repositories/settings.repo.js';
 
@@ -10,21 +11,35 @@ import { setSettings } from './db/repositories/settings.repo.js';
  * Values come from the environment, so nothing is hardcoded in the crawler and
  * everything stays editable from the dashboard afterwards.
  */
-export async function seedInitialData({ log = console.log } = {}) {
-  const created = { website: null, worker: null };
+const sameUrl = (a, b) => String(a).replace(/\/+$/, '') === String(b).replace(/\/+$/, '');
 
-  if (config.seed.websiteUrl && !(await listWebsites()).length) {
-    created.website = await createWebsite({
-      name: config.seed.websiteName,
-      url: config.seed.websiteUrl,
+export async function seedInitialData({ log = console.log } = {}) {
+  const created = { websites: [], worker: null };
+
+  // The watched list lives in code: publish anything missing, on every boot.
+  const existing = await listWebsites();
+  for (const site of config.seed.watched ? WATCHED_SITES : []) {
+    if (existing.some((website) => sameUrl(website.url, site.url))) continue;
+    const website = await createWebsite({
+      name: site.name,
+      url: site.url,
       active: true,
       check_interval: config.seed.websiteInterval,
       detection_method: 'auto',
       selector_config: {},
-      notes: 'Seed inicial - editable desde el dashboard',
+      notes: null,
     });
-    await setSettings({ default_check_interval: config.seed.websiteInterval });
-    log(`[seed] website "${created.website.name}" (${created.website.url})`);
+    created.websites.push(website.name);
+  }
+  if (created.websites.length) log(`[seed] ${created.websites.length} website(s) added`);
+
+  // Test sites stay in the history but stop being checked.
+  for (const retired of config.seed.watched ? RETIRED_SITES : []) {
+    const match = existing.find((website) => sameUrl(website.url, retired));
+    if (match?.active) {
+      await setActive(match.id, false);
+      log(`[seed] retired "${match.name}"`);
+    }
   }
 
   if (config.seed.workerEmail && !(await listWorkers()).length) {

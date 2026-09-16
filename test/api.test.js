@@ -9,6 +9,7 @@ process.env.ADMIN_PASSWORD = 'secret-password';
 const { runMigrations } = await import('../src/db/migrate.js');
 const { closeDb } = await import('../src/db/index.js');
 const { createApp } = await import('../src/api/server.js');
+const { createWebsite } = await import('../src/db/repositories/websites.repo.js');
 
 await runMigrations({ log: () => {} });
 
@@ -83,37 +84,53 @@ test('state-changing requests require the CSRF token', async () => {
   client.csrf = token;
 });
 
-test('websites can be added, edited, toggled and removed from the dashboard', async (t) => {
+test('the watched list is code-managed: no adding or removing over the API', async () => {
+  // src/config/sites.js is the only place a site is added or dropped. These
+  // endpoints used to exist and must stay gone, because the dashboard is open.
+  const created = await call('/api/websites', {
+    method: 'POST',
+    body: { name: 'Intruso', url: 'https://intruso.example', check_interval: 60 },
+  });
+  assert.equal(created.status, 404, 'there is no way to create a website over the API');
+
+  const imported = await call('/api/websites/import', { method: 'POST', body: { text: 'X\nhttps://x.example' } });
+  assert.equal(imported.status, 404, 'the bulk importer is gone too');
+
+  const seeded = await createWebsite({
+    name: 'FFSP',
+    url: 'https://ffsp.info',
+    active: true,
+    check_interval: 60,
+    detection_method: 'auto',
+    selector_config: {},
+  });
+  const removed = await call(`/api/websites/${seeded.id}`, { method: 'DELETE' });
+  assert.equal(removed.status, 404, 'and nothing can delete a website either');
+  assert.equal((await call('/api/websites')).data.websites.length, 1);
+});
+
+test('a watched website can be checked, edited and toggled from the dashboard', async (t) => {
   const site = await startFixtureSite({ posts: [{ title: 'Publicacion de prueba del sitio', url: '/p1' }] });
   t.after(() => site.close());
 
-  const created = await call('/api/websites', {
-    method: 'POST',
-    body: { name: 'FFSP', url: 'https://ffsp.info', check_interval: 60, detection_method: 'auto' },
+  // Published the way the real ones are: from code, at boot.
+  const second = await createWebsite({
+    name: 'Segunda web',
+    url: site.url,
+    active: true,
+    check_interval: 120,
+    detection_method: 'html',
+    selector_config: { list: 'article.post', title: 'h2 a', link: 'a', date: 'time' },
   });
-  assert.equal(created.status, 201);
-  assert.equal(created.data.website.name, 'FFSP');
-
-  // A SECOND website, added without touching any code.
-  const second = await call('/api/websites', {
-    method: 'POST',
-    body: {
-      name: 'Segunda web',
-      url: site.url,
-      check_interval: 120,
-      detection_method: 'html',
-      selector_config: { list: 'article.post', title: 'h2 a', link: 'a', date: 'time' },
-    },
-  });
-  assert.equal(second.status, 201);
-  const secondId = second.data.website.id;
-  assert.equal(second.data.website.selector_config.list, 'article.post');
+  const secondId = second.id;
 
   const list = await call('/api/websites');
   assert.equal(list.data.websites.length, 2);
 
+  // How a site is read stays editable: that is maintenance, not curation.
   const edited = await call(`/api/websites/${secondId}`, { method: 'PUT', body: { check_interval: 300 } });
   assert.equal(edited.data.website.check_interval, 300);
+  assert.equal(edited.data.website.selector_config.list, 'article.post');
 
   const toggled = await call(`/api/websites/${secondId}/toggle`, { method: 'POST', body: { active: false } });
   assert.equal(toggled.data.website.active, false);
@@ -128,15 +145,8 @@ test('websites can be added, edited, toggled and removed from the dashboard', as
   const history = await call(`/api/websites/${secondId}/posts`);
   assert.equal(history.data.posts.length, 1);
 
-  const duplicateUrl = await call('/api/websites', { method: 'POST', body: { name: 'dup', url: 'https://ffsp.info' } });
-  assert.equal(duplicateUrl.status, 409);
-
-  const invalid = await call('/api/websites', { method: 'POST', body: { name: 'bad', url: 'not-a-url' } });
+  const invalid = await call(`/api/websites/${secondId}`, { method: 'PUT', body: { url: 'not-a-url' } });
   assert.equal(invalid.status, 400);
-
-  const removed = await call(`/api/websites/${secondId}`, { method: 'DELETE' });
-  assert.equal(removed.status, 200);
-  assert.equal((await call('/api/websites')).data.websites.length, 1);
 });
 
 test('workers are managed from the dashboard and receive test emails', async () => {
@@ -172,7 +182,7 @@ test('workers are managed from the dashboard and receive test emails', async () 
 test('status endpoint reports the dashboard summary', async () => {
   const { status, data } = await call('/api/status');
   assert.equal(status, 200);
-  assert.equal(data.websites.total, 1);
+  assert.equal(data.websites.total, 2);
   assert.equal(data.workers.active, 1);
   assert.ok('status' in data.crawler);
   assert.ok(Array.isArray(data.recent_posts));
