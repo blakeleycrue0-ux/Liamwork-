@@ -35,6 +35,7 @@ const NUMERIC_SETTINGS = {
   max_items_per_email: [1, 100],
   log_retention_days: [0, 365],
   ai_recovery_min_hours: [1, 168],
+  digest_hour: [0, 23],
 };
 const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled', 'ai_recovery_enabled'];
 
@@ -55,6 +56,21 @@ settingsRoutes.put(
       const value = Number.parseInt(req.body[key], 10);
       if (!Number.isFinite(value) || value < range[0] || value > range[1]) {
         throw new ValidationError(`${key} debe estar entre ${range[0]} y ${range[1]}`);
+      }
+      patch[key] = value;
+    }
+    for (const key of ['notification_mode', 'digest_timezone']) {
+      if (req.body?.[key] === undefined) continue;
+      const value = String(req.body[key]).trim();
+      if (key === 'notification_mode' && !['digest', 'instant'].includes(value)) {
+        throw new ValidationError('El modo de aviso debe ser "digest" o "instant"');
+      }
+      if (key === 'digest_timezone') {
+        try {
+          new Intl.DateTimeFormat('en-CA', { timeZone: value });
+        } catch {
+          throw new ValidationError('Zona horaria no válida');
+        }
       }
       patch[key] = value;
     }

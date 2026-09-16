@@ -10,6 +10,11 @@ const DEFAULTS = {
   log_retention_days: '30',
   ai_recovery_enabled: 'false',
   ai_recovery_min_hours: '6',
+  // 'digest' -> one summary a day; 'instant' -> an email per detection.
+  notification_mode: 'digest',
+  digest_hour: '20',
+  digest_timezone: 'Europe/Madrid',
+  digest_last_date: '',
 };
 
 /**

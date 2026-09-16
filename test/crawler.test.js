@@ -13,6 +13,8 @@ const settings = await import('../src/db/repositories/settings.repo.js');
 const { checkWebsite, runDueChecks, isDue } = await import('../src/crawler/index.js');
 
 await runMigrations({ log: () => {} });
+// These tests cover the instant-alert path; the daily digest has its own file.
+await settings.setSettings({ notification_mode: 'instant' });
 await workers.createWorker({ name: 'Test Worker', email: 'test-worker@example.com', active: true });
 await workers.createWorker({ name: 'Inactive', email: 'inactive@example.com', active: false });
 

@@ -2,6 +2,7 @@ import { purgeOlderThan } from '../db/repositories/checkLogs.repo.js';
 import { getBool, getInt } from '../db/repositories/settings.repo.js';
 import { updateState } from '../db/repositories/crawlerState.repo.js';
 import { runDueChecks } from '../crawler/index.js';
+import { digestDue, sendDigest } from '../notifications/digest.js';
 
 /**
  * Periodic driver for the crawler. It wakes up every `scheduler_tick` seconds,
@@ -73,6 +74,7 @@ export class Scheduler {
           `[scheduler] checked ${outcome.checked} website(s), ${outcome.newItems} new item(s), ${outcome.failed} error(s)`,
         );
       }
+      await this.maybeDigest();
       await this.maybeCleanup();
       await updateState({
         status: 'idle',
@@ -88,6 +90,19 @@ export class Scheduler {
     } finally {
       this.running = false;
       this.scheduleNext();
+    }
+  }
+
+  /** Sends the daily summary once its hour has passed. */
+  async maybeDigest() {
+    try {
+      if (!(await digestDue())) return;
+      const outcome = await sendDigest();
+      if (outcome.sent) {
+        this.log(`[digest] sent ${outcome.posts} item(s) in ${outcome.sections} section(s)`);
+      }
+    } catch (error) {
+      this.log(`[digest] failed: ${error.message}`);
     }
   }
 

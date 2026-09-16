@@ -3,242 +3,305 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Web Monitor · Dashboard</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%232563eb'/%3E%3Ccircle cx='16' cy='16' r='5' fill='white'/%3E%3C/svg%3E">
+  <title>Web Monitor · Panel</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><span class="brand-dot"></span> Web Monitor</div>
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-page="summary">Resumen</button>
-      <button class="tab" data-page="websites">Webs</button>
-      <button class="tab" data-page="workers">Trabajadores</button>
-      <button class="tab" data-page="activity">Actividad</button>
-      <button class="tab" data-page="users" id="tab-users" hidden>Usuarios</button>
-      <button class="tab" data-page="settings">Configuración</button>
-    </nav>
-    <div class="topbar-right">
-      <span id="current-user" class="muted"></span>
-      <span id="clock" class="mono"></span>
-      <button class="btn-sm" id="logout">Salir</button>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">◉</span>
+      <span>Web Monitor</span>
     </div>
-  </header>
+    <nav id="tabs" style="display:contents">
+      <button class="nav-item active" data-page="summary"><span class="ico">◧</span> Resumen</button>
+      <button class="nav-item" data-page="websites"><span class="ico">◍</span> Webs</button>
+      <button class="nav-item" data-page="workers"><span class="ico">◎</span> Trabajadores</button>
+      <button class="nav-item" data-page="activity"><span class="ico">◈</span> Actividad</button>
+      <button class="nav-item" data-page="users" id="tab-users" hidden><span class="ico">◐</span> Usuarios</button>
+      <button class="nav-item" data-page="settings"><span class="ico">◇</span> Configuración</button>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="sidebar-foot" id="sidebar-credit"></div>
+  </aside>
 
-  <main class="container">
-    <!-- ============ RESUMEN ============ -->
-    <section class="page active" id="page-summary">
-      <div class="page-head">
-        <h1>Resumen</h1>
-        <button class="btn-primary btn-sm" id="run-now">Comprobar ahora</button>
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="page-title">Resumen</div>
+      <div class="topbar-right">
+        <span id="current-user"></span>
+        <span id="clock" class="mono"></span>
+        <button class="btn-sm" id="logout" hidden>Salir</button>
       </div>
-      <div class="grid">
-        <div class="card">
-          <div class="card-label">Crawler</div>
-          <div class="card-value" id="s-crawler">—</div>
-          <div class="card-sub" id="s-crawler-sub">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Webs monitorizadas</div>
-          <div class="card-value" id="s-websites">—</div>
-          <div class="card-sub" id="s-websites-sub">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Trabajadores</div>
-          <div class="card-value" id="s-workers">—</div>
-          <div class="card-sub" id="s-workers-sub">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Última comprobación</div>
-          <div class="card-value" id="s-last-check">—</div>
-          <div class="card-sub" id="s-last-check-sub">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Novedades (24 h)</div>
-          <div class="card-value" id="s-news">—</div>
-          <div class="card-sub" id="s-news-sub">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Errores (24 h)</div>
-          <div class="card-value" id="s-errors">—</div>
-          <div class="card-sub" id="s-errors-sub">—</div>
-        </div>
-      </div>
+    </header>
 
-      <div class="section">
-        <h2>Últimas novedades detectadas</h2>
+    <main class="content">
+      <!-- ============ RESUMEN ============ -->
+      <section class="page active" id="page-summary">
+        <div class="page-head">
+          <div>
+            <h1>Resumen</h1>
+            <p>Qué se ha detectado y cuándo sale el próximo informe.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn-sm" id="run-now">Comprobar ahora</button>
+          </div>
+        </div>
+
+        <div class="hero">
+          <div class="grow">
+            <div class="eyebrow">Informe diario</div>
+            <h2 id="digest-headline">—</h2>
+            <div class="meta" id="digest-meta">—</div>
+          </div>
+          <div class="head-actions">
+            <button id="digest-preview">Ver borrador</button>
+            <button id="digest-send">Enviar ahora</button>
+          </div>
+        </div>
+
+        <div class="grid section">
+          <div class="card stat">
+            <div class="label">Crawler</div>
+            <div class="value" id="s-crawler">—</div>
+            <div class="sub" id="s-crawler-sub">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Webs vigiladas</div>
+            <div class="value" id="s-websites">—</div>
+            <div class="sub" id="s-websites-sub">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Trabajadores</div>
+            <div class="value" id="s-workers">—</div>
+            <div class="sub" id="s-workers-sub">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Última comprobación</div>
+            <div class="value" id="s-last-check">—</div>
+            <div class="sub" id="s-last-check-sub">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Novedades (24 h)</div>
+            <div class="value" id="s-news">—</div>
+            <div class="sub" id="s-news-sub">—</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Errores (24 h)</div>
+            <div class="value" id="s-errors">—</div>
+            <div class="sub" id="s-errors-sub">—</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Últimas novedades</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Web</th><th>Novedad</th><th>Detectada</th><th>Informe</th></tr></thead>
+              <tbody id="recent-posts"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Errores recientes</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Web</th><th>Cuándo</th><th>Detalle</th></tr></thead>
+              <tbody id="recent-errors"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="credit" id="footer-credit"></div>
+      </section>
+
+      <!-- ============ WEBS ============ -->
+      <section class="page" id="page-websites">
+        <div class="page-head">
+          <div>
+            <h1>Webs</h1>
+            <p>Páginas vigiladas y cómo se lee cada una.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn-primary btn-sm" id="add-website">Añadir web</button>
+          </div>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Web</th><th>Título</th><th>Detectada</th><th>Email</th></tr></thead>
-            <tbody id="recent-posts"></tbody>
+            <thead>
+              <tr><th>Web</th><th>Estado</th><th>Comprobada</th><th>Última novedad</th><th>Errores</th><th>Cada</th><th></th></tr>
+            </thead>
+            <tbody id="websites-body"></tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <div class="section">
-        <h2>Errores recientes</h2>
+      <!-- ============ TRABAJADORES ============ -->
+      <section class="page" id="page-workers">
+        <div class="page-head">
+          <div>
+            <h1>Trabajadores</h1>
+            <p>Quién recibe el informe diario.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn-sm" id="test-email-all">Email de prueba</button>
+            <button class="btn-primary btn-sm" id="add-worker">Añadir trabajador</button>
+          </div>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Web</th><th>Cuándo</th><th>Error</th></tr></thead>
-            <tbody id="recent-errors"></tbody>
+            <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Alta</th><th></th></tr></thead>
+            <tbody id="workers-body"></tbody>
           </table>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ============ WEBS ============ -->
-    <section class="page" id="page-websites">
-      <div class="page-head">
-        <h1>Webs monitorizadas</h1>
-        <button class="btn-primary btn-sm" id="add-website">+ Añadir web</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Web</th><th>Estado</th><th>Última comprobación</th>
-              <th>Última novedad</th><th>Errores</th><th>Intervalo</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="websites-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ============ TRABAJADORES ============ -->
-    <section class="page" id="page-workers">
-      <div class="page-head">
-        <h1>Trabajadores</h1>
-        <div>
-          <button class="btn-sm" id="test-email-all">Email de prueba a todos</button>
-          <button class="btn-primary btn-sm" id="add-worker">+ Añadir trabajador</button>
+      <!-- ============ ACTIVIDAD ============ -->
+      <section class="page" id="page-activity">
+        <div class="page-head">
+          <div>
+            <h1>Actividad</h1>
+            <p>Todo lo detectado y todas las comprobaciones.</p>
+          </div>
+          <div class="head-actions">
+            <select id="activity-filter" style="width:auto">
+              <option value="all">Todas las comprobaciones</option>
+              <option value="errors">Solo errores</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Creado</th><th></th></tr></thead>
-          <tbody id="workers-body"></tbody>
-        </table>
-      </div>
-      <p class="hint">Los emails de alerta se envían siempre a los trabajadores <strong>activos</strong>.</p>
-    </section>
-
-    <!-- ============ ACTIVIDAD ============ -->
-    <section class="page" id="page-activity">
-      <div class="page-head">
-        <h1>Actividad</h1>
-        <div>
-          <select id="activity-filter" style="width:auto">
-            <option value="all">Todas las comprobaciones</option>
-            <option value="errors">Solo errores</option>
-          </select>
-        </div>
-      </div>
-      <h2>Publicaciones detectadas</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Web</th><th>Título</th><th>Publicada</th><th>Detectada</th><th>Email</th></tr></thead>
-          <tbody id="posts-body"></tbody>
-        </table>
-      </div>
-      <div class="section">
-        <h2>Historial de comprobaciones</h2>
+        <h2>Novedades detectadas</h2>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Web</th><th>Cuándo</th><th>Resultado</th><th>Método</th><th>Items</th><th>Nuevos</th><th>ms</th></tr></thead>
-            <tbody id="logs-body"></tbody>
+            <thead><tr><th>Web</th><th>Novedad</th><th>Publicada</th><th>Detectada</th><th>Informe</th></tr></thead>
+            <tbody id="posts-body"></tbody>
           </table>
         </div>
-      </div>
-    </section>
+        <div class="section">
+          <h2>Comprobaciones</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Web</th><th>Cuándo</th><th>Resultado</th><th>Método</th><th>Items</th><th>Nuevos</th><th>ms</th></tr></thead>
+              <tbody id="logs-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
-    <!-- ============ USUARIOS ============ -->
-    <section class="page" id="page-users">
-      <div class="page-head">
-        <h1>Usuarios del dashboard</h1>
-        <button class="btn-primary btn-sm" id="add-user">+ Añadir usuario</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Email</th><th>Creado</th><th>Último acceso</th><th></th></tr></thead>
-          <tbody id="users-body"></tbody>
-        </table>
-      </div>
-      <p class="hint">
-        Son las personas que <strong>entran al dashboard</strong> (gestionadas con Supabase Auth).
-        No confundir con los <strong>trabajadores</strong>, que solo reciben los emails de aviso.
-      </p>
-    </section>
+      <!-- ============ USUARIOS ============ -->
+      <section class="page" id="page-users">
+        <div class="page-head">
+          <div>
+            <h1>Usuarios</h1>
+            <p>Quién entra al panel. No confundir con los trabajadores, que solo reciben el informe.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn-primary btn-sm" id="add-user">Añadir usuario</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Email</th><th>Alta</th><th>Último acceso</th><th></th></tr></thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+      </section>
 
-    <!-- ============ CONFIGURACIÓN ============ -->
-    <section class="page" id="page-settings">
-      <div class="page-head"><h1>Configuración</h1></div>
-      <div class="card">
+      <!-- ============ CONFIGURACIÓN ============ -->
+      <section class="page" id="page-settings">
+        <div class="page-head">
+          <div>
+            <h1>Configuración</h1>
+            <p>Cómo y cuándo avisa el sistema.</p>
+          </div>
+        </div>
+
         <form id="settings-form">
-          <div class="form-row">
-            <div>
-              <label for="default_check_interval">Intervalo por defecto (segundos)</label>
-              <input id="default_check_interval" name="default_check_interval" type="number" min="10" max="86400">
-              <div class="hint">Se usa al crear una web nueva.</div>
-            </div>
-            <div>
-              <label for="scheduler_tick">Frecuencia del scheduler (segundos)</label>
-              <input id="scheduler_tick" name="scheduler_tick" type="number" min="5" max="3600">
-              <div class="hint">Cada cuánto busca webs pendientes.</div>
-            </div>
-            <div>
-              <label for="crawler_concurrency">Comprobaciones en paralelo</label>
-              <input id="crawler_concurrency" name="crawler_concurrency" type="number" min="1" max="64">
-            </div>
-          </div>
-          <div class="form-row">
-            <div>
-              <label for="max_items_per_email">Máx. publicaciones por email</label>
-              <input id="max_items_per_email" name="max_items_per_email" type="number" min="1" max="100">
-            </div>
-            <div>
-              <label for="log_retention_days">Retención de logs (días)</label>
-              <input id="log_retention_days" name="log_retention_days" type="number" min="0" max="365">
+          <div class="card">
+            <h2>Avisos</h2>
+            <div class="form-row">
+              <div>
+                <label for="notification_mode">Modo</label>
+                <select id="notification_mode" name="notification_mode">
+                  <option value="digest">Un informe al día</option>
+                  <option value="instant">Un email por cada novedad</option>
+                </select>
+              </div>
+              <div>
+                <label for="digest_hour">Hora del informe</label>
+                <input id="digest_hour" name="digest_hour" type="number" min="0" max="23">
+                <div class="hint">Hora local, en formato 24 h.</div>
+              </div>
+              <div>
+                <label for="digest_timezone">Zona horaria</label>
+                <input id="digest_timezone" name="digest_timezone" type="text" placeholder="Europe/Madrid">
+              </div>
             </div>
           </div>
-          <div class="field checkbox">
-            <input type="checkbox" id="crawler_enabled" name="crawler_enabled">
-            <label for="crawler_enabled" style="margin:0">Crawler activo</label>
-          </div>
-          <div class="field checkbox">
-            <input type="checkbox" id="ai_recovery_enabled" name="ai_recovery_enabled">
-            <label for="ai_recovery_enabled" style="margin:0">
-              Reparar la detección con IA cuando una web deje de dar resultados
-            </label>
-          </div>
-          <div class="form-row">
-            <div>
-              <label for="ai_recovery_min_hours">Horas mínimas entre intentos con IA</label>
-              <input id="ai_recovery_min_hours" name="ai_recovery_min_hours" type="number" min="1" max="168">
-              <div class="hint">Evita que una web rota llame al modelo una y otra vez.</div>
+
+          <div class="card section">
+            <h2>Comprobaciones</h2>
+            <div class="form-row">
+              <div>
+                <label for="default_check_interval">Intervalo por defecto (s)</label>
+                <input id="default_check_interval" name="default_check_interval" type="number" min="10" max="86400">
+              </div>
+              <div>
+                <label for="scheduler_tick">Frecuencia del scheduler (s)</label>
+                <input id="scheduler_tick" name="scheduler_tick" type="number" min="5" max="3600">
+              </div>
+              <div>
+                <label for="crawler_concurrency">En paralelo</label>
+                <input id="crawler_concurrency" name="crawler_concurrency" type="number" min="1" max="64">
+              </div>
+            </div>
+            <div class="form-row">
+              <div>
+                <label for="max_items_per_email">Máx. novedades por email</label>
+                <input id="max_items_per_email" name="max_items_per_email" type="number" min="1" max="100">
+              </div>
+              <div>
+                <label for="log_retention_days">Retención de logs (días)</label>
+                <input id="log_retention_days" name="log_retention_days" type="number" min="0" max="365">
+              </div>
+              <div>
+                <label for="ai_recovery_min_hours">Horas entre intentos con IA</label>
+                <input id="ai_recovery_min_hours" name="ai_recovery_min_hours" type="number" min="1" max="168">
+              </div>
+            </div>
+            <div class="checkbox">
+              <input type="checkbox" id="crawler_enabled" name="crawler_enabled">
+              <label for="crawler_enabled" style="margin:0">Crawler activo</label>
+            </div>
+            <div class="checkbox">
+              <input type="checkbox" id="notify_on_first_check" name="notify_on_first_check">
+              <label for="notify_on_first_check" style="margin:0">Avisar también en la primera comprobación de una web</label>
+            </div>
+            <div class="checkbox">
+              <input type="checkbox" id="ai_recovery_enabled" name="ai_recovery_enabled">
+              <label for="ai_recovery_enabled" style="margin:0">Reparar la detección con IA cuando una web deje de dar resultados</label>
             </div>
           </div>
-          <div class="field checkbox">
-            <input type="checkbox" id="notify_on_first_check" name="notify_on_first_check">
-            <label for="notify_on_first_check" style="margin:0">Notificar también en la primera comprobación de una web</label>
-          </div>
-          <div class="hint">Por defecto, la primera comprobación solo crea la línea base (guarda lo existente sin enviar emails).</div>
+
           <div class="modal-actions">
             <button type="button" class="btn-sm" id="verify-mail">Verificar SMTP</button>
             <button class="btn-primary" type="submit">Guardar</button>
           </div>
         </form>
-      </div>
-      <div class="card section">
-        <h2>Email</h2>
-        <p class="muted" id="mail-info">—</p>
-        <p class="hint">Las credenciales SMTP se configuran mediante variables de entorno (<span class="mono">.env</span>), nunca desde el dashboard.</p>
-      </div>
-    </section>
-  </main>
 
-  <div id="modal-root"></div>
-  <div class="toasts" id="toasts"></div>
-  <script src="/app.js" type="module"></script>
+        <div class="card section">
+          <h2>Email</h2>
+          <p class="muted" id="mail-info">—</p>
+          <p class="hint">Las credenciales SMTP viven en variables de entorno, nunca en el panel.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div class="toasts" id="toasts"></div>
+<script src="/app.js" type="module"></script>
 </body>
 </html>

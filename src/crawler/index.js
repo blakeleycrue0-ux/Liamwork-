@@ -1,5 +1,5 @@
 import { addLog, lastAiAttemptAt } from '../db/repositories/checkLogs.repo.js';
-import { getBool, getInt } from '../db/repositories/settings.repo.js';
+import { getBool, getInt, getSetting } from '../db/repositories/settings.repo.js';
 import {
   getWebsite,
   listWebsites,
@@ -113,8 +113,11 @@ export async function checkWebsite(websiteOrId, { force = false } = {}) {
 
     const detection = await detectNewPosts(website, fetched.items);
 
-    let notification = { sent: false, reason: 'no-new-posts' };
-    if (detection.toNotify.length) {
+    // In digest mode nothing is emailed on the spot: the findings wait for the
+    // daily summary, which is what turns 40 alerts into one useful briefing.
+    const mode = await getSetting('notification_mode', 'digest');
+    let notification = { sent: false, reason: mode === 'digest' ? 'waiting-for-digest' : 'no-new-posts' };
+    if (detection.toNotify.length && mode === 'instant') {
       try {
         notification = await notifyNewPosts(website, detection.toNotify);
       } catch (error) {

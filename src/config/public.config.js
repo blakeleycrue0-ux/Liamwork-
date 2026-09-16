@@ -10,6 +10,12 @@
  * entorno equivalente.
  */
 export const publicConfig = {
+  // Shown in the dashboard footer and at the bottom of every email.
+  brand: {
+    name: 'Web Monitor',
+    credit: 'Hecho por Blakeley · Web Monitor',
+  },
+
   // 'none'     -> el dashboard es accesible sin iniciar sesion
   // 'local'    -> un unico administrador (ADMIN_USERNAME / ADMIN_PASSWORD_HASH)
   // 'supabase' -> usuarios reales gestionados por Supabase Auth

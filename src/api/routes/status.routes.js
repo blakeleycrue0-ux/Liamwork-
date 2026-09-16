@@ -57,6 +57,7 @@ statusRoutes.get(
       recent_posts: recentPosts,
       recent_errors: recentErrors,
       mail: { transport: config.mail.transport, from: config.mail.from },
+      brand: { name: config.brand.name, credit: config.brand.credit },
       server_time: new Date().toISOString(),
     });
   }),

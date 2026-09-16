@@ -14,6 +14,7 @@ import { workerRoutes } from './routes/workers.routes.js';
 import { statusRoutes } from './routes/status.routes.js';
 import { logRoutes, postRoutes, settingsRoutes } from './routes/misc.routes.js';
 import { userRoutes } from './routes/users.routes.js';
+import { digestRoutes } from './routes/digest.routes.js';
 
 // NOT named __dirname: bundlers for serverless (Netlify) inject their own
 // __dirname, and two declarations in the same scope are a SyntaxError that
@@ -78,6 +79,7 @@ export function createApp() {
   app.use('/api/logs', logRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/digest', digestRoutes);
 
   // The dashboard shell carries no data, so it is always public - exactly how
   // Netlify serves it, straight from the CDN. Access control lives on /api.

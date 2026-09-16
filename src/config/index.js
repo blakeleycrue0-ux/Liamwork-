@@ -70,6 +70,11 @@ export const config = {
     secureCookies: bool(process.env.SECURE_COOKIES, false),
   },
 
+  brand: {
+    name: process.env.APP_NAME || publicConfig.brand?.name || 'Web Monitor',
+    credit: process.env.APP_CREDIT || publicConfig.brand?.credit || 'Web Monitor',
+  },
+
   supabase: {
     // URL and anon key ship with the app on purpose (see public.config.json);
     // environment variables override them when pointing at another project.

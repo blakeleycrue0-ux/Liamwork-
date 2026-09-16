@@ -58,6 +58,19 @@ export async function pendingNotification(websiteId) {
   );
 }
 
+/** Everything detected and not yet reported, across every website. */
+export async function pendingForDigest(limit = 200) {
+  const db = await getDb();
+  return db.all(
+    `SELECT p.*, w.name AS website_name, w.url AS website_url
+     FROM posts p JOIN websites w ON w.id = p.website_id
+     WHERE p.notified_at IS NULL
+     ORDER BY w.name, p.first_seen_at
+     LIMIT ?`,
+    [limit],
+  );
+}
+
 export async function listPosts({ websiteId = null, limit = 50, offset = 0 } = {}) {
   const db = await getDb();
   const where = websiteId ? 'WHERE p.website_id = ?' : '';

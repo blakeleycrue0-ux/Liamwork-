@@ -95,7 +95,9 @@ function fmtDuration(seconds) {
   return `${Math.round(seconds / 86400)} d`;
 }
 
-const dot = (kind) => el('span', { className: `dot ${kind}` });
+const DOT_COLOURS = { ok: 'var(--ok)', err: 'var(--bad)', warn: 'var(--warn)', off: '#94a3b8' };
+const dot = (kind) =>
+  el('span', { className: 'dot', style: `background:${DOT_COLOURS[kind] ?? '#94a3b8'}` });
 
 /* ------------------------------------------------------------------ modal */
 function openModal({ title, fields, submitLabel = 'Guardar', onSubmit, secondary = null }) {
@@ -221,8 +223,10 @@ async function refreshStatus() {
 
   const crawlerCell = $('#s-crawler');
   crawlerCell.replaceChildren(
-    el('span', { className: `dot ${statusDot}${crawler.status === 'running' ? ' pulse' : ''}` }),
-    el('span', { style: 'font-size:20px', textContent: statusLabel }),
+    el('span', { className: `badge ${statusDot === 'ok' ? 'ok' : statusDot === 'warn' ? 'warn' : 'mute'}` }, [
+      el('span', { className: `dot${crawler.status === 'running' ? ' pulse' : ''}` }),
+      statusLabel,
+    ]),
   );
   $('#s-crawler-sub').textContent = running
     ? `Última ejecución ${fmtTime(crawler.last_run_at)} · Próxima ${fmtTime(crawler.next_run_at)}`
@@ -277,6 +281,70 @@ async function refreshStatus() {
   );
 
   $('#mail-info').textContent = `Transporte: ${data.mail.transport} · Remitente: ${data.mail.from}`;
+
+  if (data.brand?.credit) {
+    $('#footer-credit').textContent = data.brand.credit;
+    $('#sidebar-credit').textContent = data.brand.credit;
+  }
+
+  await refreshDigest().catch(() => {});
+}
+
+/* ---------------------------------------------------------- daily digest */
+/** The hero: when the next report goes out and what is waiting for it. */
+async function refreshDigest() {
+  const { digest } = await api('/digest');
+  state.digest = digest;
+
+  if (digest.mode !== 'digest') {
+    $('#digest-headline').textContent = 'Aviso inmediato por cada novedad';
+    $('#digest-meta').textContent = 'Cambia el modo en Configuración para recibir un único informe al día.';
+    return;
+  }
+
+  const pending = digest.pending_items;
+  $('#digest-headline').textContent = pending
+    ? `${pending} novedad${pending === 1 ? '' : 'es'} esperando al informe`
+    : 'Sin novedades pendientes';
+  $('#digest-meta').textContent = digest.sent_today
+    ? `Informe de hoy ya enviado · próximo mañana a las ${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`
+    : `Se enviará hoy a las ${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`;
+}
+
+/** Shows the exact briefing that would be emailed, without sending it. */
+async function showDigestPreview() {
+  const { summary, items } = await api('/digest/preview');
+  const modal = el('div', { className: 'modal' }, [
+    el('h2', { textContent: 'Borrador del informe' }),
+    el('div', { className: 'strong', style: 'font-size:16px', textContent: summary.headline }),
+    el('div', {
+      className: 'hint',
+      textContent: `${items} novedad(es) · ${summary.generatedByAi ? 'redactado por IA' : 'agrupado por web'}`,
+    }),
+    ...(summary.sections.length
+      ? summary.sections.map((section) =>
+          el('div', { className: 'digest-section' }, [
+            el('div', { className: 'digest-title', textContent: `${section.emoji} ${section.title}` }),
+            ...section.items.map((item) =>
+              el('div', { className: 'digest-item' }, [
+                el('div', { className: 'what', textContent: item.text }),
+                el('div', { className: 'where' }, [
+                  item.website,
+                  item.url ? el('a', { href: item.url, target: '_blank', rel: 'noopener', textContent: ' · abrir' }) : '',
+                ]),
+              ]),
+            ),
+          ]),
+        )
+      : [el('div', { className: 'empty', textContent: 'Nada que contar todavía.' })]),
+  ]);
+
+  const close = el('button', { textContent: 'Cerrar' });
+  modal.append(el('div', { className: 'modal-actions' }, [close]));
+  const backdrop = el('div', { className: 'modal-backdrop' }, [modal]);
+  close.addEventListener('click', () => backdrop.remove());
+  backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) backdrop.remove(); });
+  $('#modal-root').append(backdrop);
 }
 
 /* ----------------------------------------------------------- websites tab */
@@ -843,7 +911,18 @@ async function loadSettings() {
 /* --------------------------------------------------------------- bootstrap */
 function showPage(page) {
   state.page = page;
-  for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active', tab.dataset.page === page);
+  const titles = {
+    summary: 'Resumen',
+    websites: 'Webs',
+    workers: 'Trabajadores',
+    activity: 'Actividad',
+    users: 'Usuarios',
+    settings: 'Configuración',
+  };
+  $('#page-title').textContent = titles[page] ?? '';
+  for (const tab of document.querySelectorAll('.nav-item')) {
+    tab.classList.toggle('active', tab.dataset.page === page);
+  }
   for (const section of document.querySelectorAll('.page')) {
     section.classList.toggle('active', section.id === `page-${page}`);
   }
@@ -870,10 +949,7 @@ async function init() {
   state.csrfToken = me?.csrfToken ?? null;
   state.user = me?.user ?? storedUser();
 
-  if (state.provider === 'none') {
-    // No hay sesión que cerrar.
-    $('#logout').hidden = true;
-  }
+  $('#logout').hidden = state.provider === 'none';
 
   if (state.provider === 'supabase') {
     document.getElementById('tab-users').hidden = false;
@@ -882,13 +958,43 @@ async function init() {
   }
 
   document.getElementById('tabs').addEventListener('click', (event) => {
-    if (event.target.dataset.page) showPage(event.target.dataset.page);
+    const tab = event.target.closest('.nav-item');
+    if (tab?.dataset.page) showPage(tab.dataset.page);
   });
 
   $('#logout').addEventListener('click', async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
     clearSession();
     window.location.reload();
+  });
+
+  $('#digest-preview').addEventListener('click', async (event) => {
+    event.target.disabled = true;
+    try {
+      await showDigestPreview();
+    } catch (error) {
+      toast(error.message, 'err');
+    } finally {
+      event.target.disabled = false;
+    }
+  });
+
+  $('#digest-send').addEventListener('click', async (event) => {
+    event.target.disabled = true;
+    try {
+      const outcome = await api('/digest/run', { method: 'POST' });
+      toast(
+        outcome.sent
+          ? `Informe enviado a ${outcome.recipients.length} destinatario(s) · ${outcome.posts} novedad(es)`
+          : `No se envió: ${outcome.reason}`,
+        outcome.sent ? 'ok' : 'err',
+      );
+      await refreshStatus();
+    } catch (error) {
+      toast(error.message, 'err');
+    } finally {
+      event.target.disabled = false;
+    }
   });
 
   $('#add-website').addEventListener('click', () => websiteModal(null));
@@ -946,6 +1052,9 @@ async function init() {
       notify_on_first_check: form.notify_on_first_check.checked,
       ai_recovery_enabled: form.ai_recovery_enabled.checked,
       ai_recovery_min_hours: form.ai_recovery_min_hours.value,
+      notification_mode: form.notification_mode.value,
+      digest_hour: form.digest_hour.value,
+      digest_timezone: form.digest_timezone.value,
     };
     try {
       const { settings } = await api('/settings', { method: 'PUT', body: payload });
