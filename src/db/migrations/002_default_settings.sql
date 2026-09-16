@@ -1,5 +1,5 @@
 INSERT INTO settings (key, value) VALUES
-  ('default_check_interval', '60'),
+  ('default_check_interval', '600'),
   ('scheduler_tick', '15'),
   ('crawler_concurrency', '8'),
   ('notify_on_first_check', 'false'),

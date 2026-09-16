@@ -410,8 +410,10 @@ Limitaciones de la plataforma que conviene conocer:
 - Las funciones programadas tienen un límite de **30 segundos** y solo se
   ejecutan en despliegues publicados (no en *deploy previews*). Por eso cada
   ejecución comprueba como máximo 25 webs, empezando por las que llevan más
-  tiempo sin comprobarse; el resto entra en el minuto siguiente.
-- El intervalo mínimo real es de **1 minuto**, que es justo el pedido.
+  tiempo sin comprobarse; el resto entra en la siguiente.
+- El crawler corre **cada 10 minutos**. Como el aviso es un informe diario,
+  comprobar más a menudo no adelanta nada y multiplica las invocaciones de la
+  plataforma. La plataforma admite hasta 1 minuto si algún día hace falta.
 - `detection_method: browser` (Playwright) **no funciona en Netlify**: no hay
   navegador en el entorno de funciones. Para esas webs usa `rss`/`html`, o
   despliega el crawler en un servidor con Docker y deja el dashboard en Netlify

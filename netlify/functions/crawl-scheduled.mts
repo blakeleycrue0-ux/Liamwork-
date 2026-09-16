@@ -71,5 +71,7 @@ export default async (req: Request) => {
 };
 
 export const config: Config = {
-  schedule: '* * * * *',
+  // Every ten minutes. The alert is a daily report, so checking more often
+  // buys nothing and multiplies the platform's invocation count.
+  schedule: '*/10 * * * *',
 };

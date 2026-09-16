@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 
 INSERT INTO settings (key, value) VALUES
-  ('default_check_interval', '60'),
+  ('default_check_interval', '600'),
   ('scheduler_tick', '60'),
   ('crawler_concurrency', '8'),
   ('notify_on_first_check', 'false'),

@@ -1,7 +1,7 @@
 import { getDb, nowIso } from '../index.js';
 
 const DEFAULTS = {
-  default_check_interval: '60',
+  default_check_interval: '600',
   scheduler_tick: '15',
   crawler_concurrency: '8',
   notify_on_first_check: 'false',
@@ -12,7 +12,7 @@ const DEFAULTS = {
   ai_recovery_min_hours: '6',
   // 'digest' -> one summary a day; 'instant' -> an email per detection.
   notification_mode: 'digest',
-  digest_hour: '20',
+  digest_hour: '8',
   digest_timezone: 'Europe/Madrid',
   digest_last_date: '',
 };
