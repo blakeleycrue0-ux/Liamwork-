@@ -58,6 +58,9 @@ function textBody(report, groups) {
     ...(report.backlog
       ? [`(${plural(report.backlog, 'viene de días anteriores', 'vienen de días anteriores')}, pendiente de informar)`]
       : []),
+    ...(report.heldBack
+      ? [`${plural(report.heldBack, 'cambio más queda', 'cambios más quedan')} para el próximo informe (límite por email: ${report.limit})`]
+      : []),
     '',
   ];
 
@@ -132,6 +135,13 @@ function htmlBody(report, groups) {
       report.backlog
         ? `<div style="font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#6b7280;padding:6px 0 0">
              ${escapeHtml(plural(report.backlog, 'viene de días anteriores', 'vienen de días anteriores'))}, pendiente de informar
+           </div>`
+        : ''
+    }
+    ${
+      report.heldBack
+        ? `<div style="font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ea580c;padding:6px 0 0">
+             ${escapeHtml(plural(report.heldBack, 'cambio más queda', 'cambios más quedan'))} para el próximo informe
            </div>`
         : ''
     }
@@ -229,6 +239,8 @@ export function buildReportEmail(report, { timeZone } = {}) {
     ...report,
     date,
     backlog: report.backlog ?? report.payload?.pending_from_previous_days ?? 0,
+    heldBack: report.heldBack ?? report.payload?.held_back_for_next_report ?? 0,
+    limit: report.limit ?? null,
     websitesQuiet: report.websitesQuiet ?? report.websites_quiet ?? 0,
     websitesTotal: report.websitesTotal ?? report.websites_total ?? 0,
     daily_summary: report.daily_summary ?? report.payload?.daily_summary ?? '',

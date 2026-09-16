@@ -1,14 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { getAllSettings, getSetting } from '../db/repositories/settings.repo.js';
+import { getAllSettings, getInt, getSetting } from '../db/repositories/settings.repo.js';
 import {
   attachToReport,
   changesForReport,
   countPendingForReport,
 } from '../db/repositories/changes.repo.js';
 import { listWebsites } from '../db/repositories/websites.repo.js';
-import { getReport, lastSentDate, markFailed, markSent, saveReport } from '../db/repositories/reports.repo.js';
+import {
+  claimForSending,
+  getReport,
+  lastSentDate,
+  markFailed,
+  markSent,
+  releaseClaim,
+  saveReport,
+} from '../db/repositories/reports.repo.js';
 import { activeRecipients } from '../notifications/notifier.js';
 import { sendMail } from '../notifications/mailer.js';
 import { aiConfigured, DEFAULT_MODEL } from './analyze.js';
@@ -62,20 +70,24 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
   const changes = await changesForReport({ date: reportDate, reportId: existing?.id ?? null });
   const websites = await listWebsites({ activeOnly: true });
 
-  const withChanges = new Set(changes.map((change) => change.website_id));
-  const counts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
-  for (const change of changes) counts[change.priority] = (counts[change.priority] ?? 0) + 1;
-  // Anything older than the day being reported is a change an earlier report
-  // should have carried and did not. Counted so the email can say so.
-  const backlog = changes.filter((change) => change.change_date < reportDate).length;
+  // Highest priority first, then oldest, so if the email has to be cut it is
+  // cut at the least important end - and a change that has been waiting the
+  // longest goes before an equally important one from today.
+  const ordered = changes.slice().sort(
+    (a, b) =>
+      PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
+      String(a.change_date).localeCompare(String(b.change_date)) ||
+      String(a.website_name).localeCompare(String(b.website_name)),
+  );
 
-  const items = changes
-    .slice()
-    .sort(
-      (a, b) =>
-        PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
-        String(a.website_name).localeCompare(String(b.website_name)),
-    )
+  // The cap from Settings. Whatever does not fit is NOT dropped: it simply
+  // stays unclaimed, so the next report picks it up. An email with a hard
+  // limit and a backlog that never loses anything are the same mechanism.
+  const limit = Math.max(1, await getInt('max_items_per_email', 20));
+  const included = ordered.slice(0, limit);
+  const heldBack = ordered.length - included.length;
+
+  const items = included
     .map((change) => ({
       id: change.id,
       website: change.website_name,
@@ -89,6 +101,13 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
       new_value: change.new_value ?? '',
       change_date: change.change_date,
     }));
+
+  const withChanges = new Set(included.map((change) => change.website_id));
+  const counts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+  for (const change of included) counts[change.priority] = (counts[change.priority] ?? 0) + 1;
+  // Anything older than the day being reported is a change an earlier report
+  // should have carried and did not. Counted so the email can say so.
+  const backlog = included.filter((change) => change.change_date < reportDate).length;
 
   const summary = await writeDailySummary(items, {
     date: reportDate,
@@ -104,6 +123,7 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
     low_priority: counts.LOW,
     changes: items.map(({ id, ...rest }) => rest),
     pending_from_previous_days: backlog,
+    held_back_for_next_report: heldBack,
     daily_summary: summary.text,
   };
 
@@ -130,13 +150,14 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
 
   return {
     ...saved,
-    changeIds: items.map((item) => item.id),
-    backlog,
     // The stored column is report_date; everything downstream reads `date`.
     date: reportDate,
     payload,
     window,
     timeZone: zone,
+    changeIds: items.map((item) => item.id),
+    backlog,
+    heldBack,
     websitesTotal: websites.length,
     websitesQuiet: websites.length - withChanges.size,
   };
@@ -208,6 +229,8 @@ export async function sendDailyReport({ date, force = false, now = new Date() } 
   const zone = settings.digest_timezone || 'Europe/Madrid';
   const reportDate = date || previousDate(zone, now);
 
+  // A cheap early exit for the common case. It is NOT the protection - two
+  // callers can both pass it at the same instant. The claim below is.
   const existing = await getReport(reportDate);
   if (existing?.sent_at && !force) {
     return { sent: false, reason: 'already-sent', date: reportDate, sentAt: existing.sent_at };
@@ -230,20 +253,28 @@ export async function sendDailyReport({ date, force = false, now = new Date() } 
     return { sent: false, reason: 'no-active-workers', date: reportDate, changes: report.total_changes };
   }
 
+  // The lock. Stamping sent_at is how you win the right to send, and only one
+  // caller can win, because the UPDATE itself carries `AND sent_at IS NULL`.
+  // Done BEFORE the mail leaves: claiming afterwards would let both callers
+  // reach sendMail first and put two identical emails in the inbox.
+  const claimed = await claimForSending(reportDate, recipients, { force });
+  if (!claimed) {
+    return { sent: false, reason: 'already-sent', date: reportDate, concurrent: true };
+  }
+
   const email = buildReportEmail(report, { timeZone: zone });
 
   try {
     const info = await sendMail({ to: recipients, ...email });
-    // Only now are the changes spent. The order matters: the mail has left,
-    // so claiming them cannot lose anything, and if the send had thrown they
-    // would still be waiting for the next report.
-    await markSent(reportDate, recipients);
+    // The changes are spent only once the mail has actually left. Anything the
+    // limit held back is deliberately not claimed, so it waits for tomorrow.
     await attachToReport(report.changeIds ?? [], report.id);
     return {
       sent: true,
       date: reportDate,
       changes: report.total_changes,
       backlog: report.backlog ?? 0,
+      heldBack: report.heldBack ?? 0,
       high: report.high_priority,
       medium: report.medium_priority,
       low: report.low_priority,
@@ -251,7 +282,9 @@ export async function sendDailyReport({ date, force = false, now = new Date() } 
       messageId: info.messageId,
     };
   } catch (error) {
-    await markFailed(reportDate, error.message);
+    // The send failed, so give the claim back: the day is not delivered, the
+    // changes are still pending, and the next run is free to try again.
+    await releaseClaim(reportDate, error.message);
     throw error;
   }
 }

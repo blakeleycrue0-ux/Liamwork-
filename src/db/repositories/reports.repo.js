@@ -75,6 +75,50 @@ export async function markSent(reportDate, recipients, { at = nowIso() } = {}) {
   ]);
 }
 
+/**
+ * Claims the right to send this date's report, atomically.
+ *
+ * Reading `sent_at` and then writing it is a race: two callers both read NULL,
+ * both decide they are the sender, and two identical emails go out. Measured,
+ * not theoretical - it happens when the button is pressed twice.
+ *
+ * So the claim IS the write. `WHERE sent_at IS NULL` makes the database pick a
+ * winner: exactly one UPDATE can match, and whoever gets `changes === 1` owns
+ * the send. The loser is told someone else has it and does nothing.
+ *
+ * @returns {Promise<boolean>} true for the one caller that may send
+ */
+export async function claimForSending(reportDate, recipients, { at = nowIso(), force = false } = {}) {
+  const db = await getDb();
+  const payload = [at, JSON.stringify(recipients), reportDate];
+
+  // A forced re-send is deliberate and single-user, so it overwrites the
+  // stamp; it still serialises, because only one UPDATE touches the row.
+  const { changes } = force
+    ? await db.run(
+        'UPDATE daily_reports SET sent_at = ?, recipients = ?, error = NULL WHERE report_date = ?',
+        payload,
+      )
+    : await db.run(
+        'UPDATE daily_reports SET sent_at = ?, recipients = ?, error = NULL WHERE report_date = ? AND sent_at IS NULL',
+        payload,
+      );
+
+  return changes === 1;
+}
+
+/**
+ * Gives the claim back when the send failed, so the next run can try again.
+ * Without this, one SMTP outage would mark the day as delivered for ever.
+ */
+export async function releaseClaim(reportDate, message) {
+  const db = await getDb();
+  await db.run(
+    'UPDATE daily_reports SET sent_at = NULL, recipients = NULL, error = ? WHERE report_date = ?',
+    [String(message).slice(0, 500), reportDate],
+  );
+}
+
 export async function markFailed(reportDate, message) {
   const db = await getDb();
   await db.run('UPDATE daily_reports SET error = ? WHERE report_date = ?', [
