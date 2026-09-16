@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { aiConfigured } from '../crawler/fetchers/ai.fetcher.js';
+import { getBool } from '../db/repositories/settings.repo.js';
 
 /**
  * Turns the day's raw detections into a briefing a person actually wants to
@@ -61,7 +62,11 @@ export async function summariseDigest(posts, { timeZone, date } = {}) {
   if (!posts.length) {
     return { headline: 'Sin novedades hoy', sections: [], generatedByAi: false };
   }
-  if (!aiConfigured()) return groupByWebsite(posts);
+  // Explicitly chosen for cost: writing a daily briefing is a small job, and
+  // this keeps the monthly bill in the cents. Can be switched off entirely.
+  if (!aiConfigured() || !(await getBool('digest_ai_enabled', true))) {
+    return groupByWebsite(posts);
+  }
 
   try {
     const client = new Anthropic();
@@ -75,11 +80,11 @@ export async function summariseDigest(posts, { timeZone, date } = {}) {
       .join('\n');
 
     const response = await client.messages.parse({
-      model: 'claude-opus-5',
-      max_tokens: 8000,
+      model: 'claude-haiku-4-5',
+      max_tokens: 4000,
       system: SYSTEM,
-      thinking: { type: 'adaptive' },
-      output_config: { format: zodOutputFormat(DigestSchema), effort: 'medium' },
+      thinking: { type: 'enabled', budget_tokens: 1024 },
+      output_config: { format: zodOutputFormat(DigestSchema) },
       messages: [
         {
           role: 'user',

@@ -1052,6 +1052,7 @@ async function init() {
       notify_on_first_check: form.notify_on_first_check.checked,
       ai_recovery_enabled: form.ai_recovery_enabled.checked,
       ai_recovery_min_hours: form.ai_recovery_min_hours.value,
+      digest_ai_enabled: form.digest_ai_enabled.checked,
       notification_mode: form.notification_mode.value,
       digest_hour: form.digest_hour.value,
       digest_timezone: form.digest_timezone.value,

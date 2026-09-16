@@ -37,7 +37,7 @@ const NUMERIC_SETTINGS = {
   ai_recovery_min_hours: [1, 168],
   digest_hour: [0, 23],
 };
-const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled', 'ai_recovery_enabled'];
+const BOOL_SETTINGS = ['notify_on_first_check', 'crawler_enabled', 'ai_recovery_enabled', 'digest_ai_enabled'];
 
 export const settingsRoutes = Router();
 settingsRoutes.get(

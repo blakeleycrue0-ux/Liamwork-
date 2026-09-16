@@ -12,9 +12,12 @@ const DEFAULTS = {
   ai_recovery_min_hours: '6',
   // 'digest' -> one summary a day; 'instant' -> an email per detection.
   notification_mode: 'digest',
-  digest_hour: '8',
+  digest_hour: '6',
   digest_timezone: 'Europe/Madrid',
   digest_last_date: '',
+  // Turn this off and the report is still sent, grouped by website, with no
+  // model call at all: zero credits.
+  digest_ai_enabled: 'true',
 };
 
 /**

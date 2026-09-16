@@ -71,7 +71,9 @@ export default async (req: Request) => {
 };
 
 export const config: Config = {
-  // Every ten minutes. The alert is a daily report, so checking more often
-  // buys nothing and multiplies the platform's invocation count.
-  schedule: '*/10 * * * *',
+  // Twice a day (UTC): ~23:00 and ~07:00 in Madrid. The night pass records
+  // what changed during the day; the morning pass records the rest and sends
+  // the report. Checking costs no model tokens, but fewer runs also means
+  // fewer platform invocations, which is the other bill.
+  schedule: '0 5,21 * * *',
 };
