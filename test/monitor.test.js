@@ -97,6 +97,9 @@ const verdictsFor = (prompt, make) => {
   return { verdicts: ids.map((id) => make(id, prompt)) };
 };
 
+// El veredicto por defecto trae categoría y borrador porque el modelo real
+// también los trae: sin categoría, el filtro de relevancia manda el cambio a
+// IGNORED, que es exactamente lo que debe hacer.
 const verdict = (id, overrides = {}) => ({
   id,
   change_type: 'UPDATED',
@@ -107,6 +110,8 @@ const verdict = (id, overrides = {}) => ({
   previous_value: '',
   new_value: '',
   reasoning: 'porque sí',
+  category: 'NEWS_EVENTS',
+  draft_message: 'Hola a todos: el club ha actualizado la información de esta página.',
   ...overrides,
 });
 

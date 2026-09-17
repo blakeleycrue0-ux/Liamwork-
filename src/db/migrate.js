@@ -8,6 +8,8 @@ import {
   MONITOR_SCHEMA_NAME,
   MONITOR_SCHEMA_POSTGRES,
   MONITOR_SCHEMA_SQLITE,
+  RELEVANCE_NAME,
+  RELEVANCE_POSTGRES,
   REPORT_ATTEMPTS_NAME,
   REPORT_ATTEMPTS_POSTGRES,
 } from './schema.monitor.js';
@@ -36,6 +38,10 @@ async function runPostgresMigrations({ log }) {
     { name: POSTGRES_SCHEMA_NAME, sql: POSTGRES_SCHEMA, guard: 'public.websites' },
     { name: MONITOR_SCHEMA_NAME, sql: MONITOR_SCHEMA_POSTGRES, guard: 'public.pages' },
     { name: REPORT_ATTEMPTS_NAME, sql: REPORT_ATTEMPTS_POSTGRES, guard: 'public.report_attempts' },
+    // Añade columnas a una tabla que ya existe, así que el guard sólo puede
+    // comprobar la tabla. No importa: los ALTER llevan IF NOT EXISTS y el paso
+    // queda anotado, de modo que correrlo dos veces no cuesta nada ni rompe.
+    { name: RELEVANCE_NAME, sql: RELEVANCE_POSTGRES, guard: 'public.detected_changes' },
   ];
 
   for (const step of steps) {

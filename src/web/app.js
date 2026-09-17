@@ -558,6 +558,21 @@ const CHANGE_TYPES = {
   IGNORED: { label: 'Irrelevante', tag: '' },
 };
 
+/**
+ * Las seis categorías que sí entran en el informe. Espejo de
+ * RELEVANT_CATEGORIES en src/monitor/analyze.js: el navegador no puede
+ * importar código del servidor, así que los nombres viven en dos sitios y
+ * una prueba comprueba que no se separen.
+ */
+const CATEGORIES = {
+  TOURNAMENTS: 'Torneo',
+  NEWS_EVENTS: 'Noticia o evento',
+  PRACTICE: 'Clases y prácticas',
+  RESTAURANT: 'Restaurante',
+  CLUB_SECTIONS: 'Secciones del club',
+  COURSE_INFO: 'Estado del campo',
+};
+
 /** Una fila del log: hora, web, evento, resultado, prioridad, estado. */
 function changeRow(change) {
   const type = CHANGE_TYPES[change.change_type] ?? { label: change.change_type, tag: '' };
@@ -601,6 +616,7 @@ async function showChangeAudit(id) {
       textContent:
         `${change.website_name} · ${fmtLongDay(change.change_date)} · ` +
         `${(CHANGE_TYPES[change.change_type] ?? { label: change.change_type }).label} · ` +
+        (CATEGORIES[change.category] ? `${CATEGORIES[change.category]} · ` : '') +
         `prioridad ${(PRIORITY[change.priority] ?? PRIORITY.LOW).label.toLowerCase()}`,
     }),
     change.summary ? el('p', { textContent: change.summary }) : '',
@@ -609,6 +625,14 @@ async function showChangeAudit(id) {
       ? el('div', { className: 'preview-box mono' }, [
           el('div', { textContent: `Antes: ${change.previous_value}` }),
           el('div', { textContent: `Ahora: ${change.new_value}` }),
+        ])
+      : '',
+    // El borrador es lo que alguien viene a buscar aquí: va antes del
+    // razonamiento, entero y seleccionable, no plegado dentro de un detalle.
+    change.draft_message
+      ? el('div', {}, [
+          el('h3', { textContent: 'Mensaje borrador' }),
+          el('p', { className: 'draft', textContent: change.draft_message }),
         ])
       : '',
     // Por qué se decidió así. El razonamiento sí es del producto: explica el

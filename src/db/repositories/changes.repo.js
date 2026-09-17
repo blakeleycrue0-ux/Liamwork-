@@ -19,10 +19,10 @@ export async function recordChange(change, { at = nowIso() } = {}) {
   return db.get(
     `INSERT INTO detected_changes (
        page_id, website_id, from_version_id, to_version_id, detected_at, change_date,
-       change_type, priority, title, url, summary, what_changed, previous_value, new_value,
-       reasoning, analyzer, model, input_tokens, output_tokens, cached_tokens,
-       analysis_input, analysis_output
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       change_type, priority, category, draft_message, title, url, summary, what_changed,
+       previous_value, new_value, reasoning, analyzer, model, input_tokens, output_tokens,
+       cached_tokens, analysis_input, analysis_output
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (to_version_id, page_id) DO NOTHING
      RETURNING *`,
     [
@@ -34,6 +34,10 @@ export async function recordChange(change, { at = nowIso() } = {}) {
       change.changeDate,
       change.changeType,
       change.priority ?? 'LOW',
+      // Solo las ponen los veredictos que pasan el filtro de relevancia; las
+      // filas antiguas y las no analizadas se quedan en NULL, que es su verdad.
+      change.category ?? null,
+      change.draftMessage ?? null,
       change.title ?? null,
       change.url ?? null,
       change.summary ?? null,
@@ -139,7 +143,8 @@ export async function listChanges({ websiteId = null, date = null, limit = 100, 
 
   return db.all(
     `SELECT c.id, c.page_id, c.website_id, c.detected_at, c.change_date, c.change_type, c.priority,
-            c.title, c.url, c.summary, c.what_changed, c.previous_value, c.new_value,
+            c.category, c.draft_message, c.title, c.url, c.summary, c.what_changed,
+            c.previous_value, c.new_value,
             c.analyzer, c.model, c.input_tokens, c.output_tokens, c.reported_in,
             w.name AS website_name
      FROM detected_changes c JOIN websites w ON w.id = c.website_id

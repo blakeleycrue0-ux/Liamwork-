@@ -59,7 +59,7 @@ export async function runPipeline({
     byDate.get(date).push(candidate);
   }
 
-  const analysis = { analyzed: 0, reported: 0, skipped: 0, batches: 0, errors: [], usage: { input: 0, output: 0, cached: 0 } };
+  const analysis = { analyzed: 0, reported: 0, filtered: 0, skipped: 0, batches: 0, errors: [], usage: { input: 0, output: 0, cached: 0 } };
 
   if (analyze) {
     for (const [date, candidates] of byDate) {
@@ -70,6 +70,8 @@ export async function runPipeline({
       });
       analysis.analyzed += outcome.analyzed;
       analysis.reported += outcome.reported;
+      // Cambios reales que el filtro de relevancia dejó fuera del informe.
+      analysis.filtered += outcome.filtered ?? 0;
       analysis.skipped += outcome.skipped;
       analysis.batches += outcome.batches;
       analysis.errors.push(...outcome.errors);

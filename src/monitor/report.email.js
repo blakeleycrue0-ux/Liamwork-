@@ -1,4 +1,5 @@
 import { config } from '../config/index.js';
+import { categoryLabel } from './analyze.js';
 
 /**
  * The one email of the day.
@@ -67,7 +68,12 @@ function textBody(report, groups) {
   for (const group of groups) {
     lines.push(`${group.dot} ${group.label}`, '');
     for (const item of group.items) {
-      lines.push(`${item.website} — ${item.type === 'NEW' ? 'Nuevo' : 'Actualizado'}`);
+      const kind = categoryLabel(item.category);
+      lines.push(
+        `${item.website} — ${kind ? `${kind.icon} ${kind.label} · ` : ''}${
+          item.type === 'NEW' ? 'Nuevo' : 'Actualizado'
+        }`,
+      );
       if (item.title) lines.push(item.title);
       if (item.change_date && item.change_date < report.date) {
         lines.push(`[atrasado: del ${item.change_date}]`);
@@ -78,6 +84,10 @@ function textBody(report, groups) {
         lines.push(`Antes: ${item.previous_value}`, `Ahora: ${item.new_value}`);
       }
       if (item.url) lines.push(item.url);
+      // El borrador, separado y entre comillas: se selecciona y se pega.
+      if (item.draft_message) {
+        lines.push('', '\u{1F4AC} Mensaje borrador:', `"${item.draft_message}"`);
+      }
       lines.push('');
     }
   }
@@ -180,6 +190,17 @@ function htmlBody(report, groups) {
 
 function card(item, group) {
   const label = item.type === 'NEW' ? 'Nuevo' : 'Actualizado';
+  const kind = categoryLabel(item.category);
+  // El borrador va en su propia caja, con borde y comillas: tiene que
+  // leerse como "esto es texto para mandar", no como una nota más del aviso.
+  const draft = item.draft_message
+    ? `<div style="margin-top:12px;background:#f6f6f7;border-left:2px solid #c7c7cc;border-radius:0 8px 8px 0;padding:12px 14px">
+         <div style="font:600 11px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.1em;color:#6b7280;text-transform:uppercase">
+           \u{1F4AC} Mensaje borrador
+         </div>
+         <div style="font:400 14px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#31313a;padding-top:8px;white-space:pre-wrap">${escapeHtml(item.draft_message)}</div>
+       </div>`
+    : '';
   const compare =
     item.previous_value && item.new_value
       ? `<div style="font:400 13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#31313a;background:#f6f6f7;border-radius:8px;padding:10px 12px;margin-top:10px">
@@ -191,7 +212,7 @@ function card(item, group) {
   return `<tr><td style="padding:0 30px 12px">
     <div style="border-left:3px solid ${group.colour};padding:2px 0 2px 14px">
       <div style="font:600 11px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase">
-        ${escapeHtml(item.website)} &middot; ${label}${
+        ${escapeHtml(item.website)} &middot; ${kind ? `${kind.icon} ${escapeHtml(kind.label)} &middot; ` : ''}${label}${
           item.stale ? ` &middot; <span style="color:#ea580c">del ${escapeHtml(item.change_date)}</span>` : ''
         }
       </div>
@@ -215,6 +236,7 @@ function card(item, group) {
           : ''
       }
       ${compare}
+      ${draft}
     </div>
   </td></tr>`;
 }

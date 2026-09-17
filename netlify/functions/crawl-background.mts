@@ -35,7 +35,8 @@ export default async () => {
     console.log(
       `[crawl] ${pipeline.crawl.websites} web(s), ${pipeline.crawl.pagesChanged} página(s) con cambios, ` +
         `${pipeline.analysis.analyzed} analizada(s) en ${pipeline.analysis.batches} llamada(s), ` +
-        `${pipeline.analysis.reported} para el informe, ${pipeline.crawl.failed} error(es) ` +
+        `${pipeline.analysis.reported} para el informe, ` +
+        `${pipeline.analysis.filtered} descartada(s) por relevancia, ${pipeline.crawl.failed} error(es) ` +
         `en ${Date.now() - startedAt}ms`,
     );
     if (pipeline.analysis.usage.input) {

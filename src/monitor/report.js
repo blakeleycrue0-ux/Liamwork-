@@ -97,6 +97,10 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
       url: change.url || change.website_url,
       type: change.change_type,
       priority: change.priority,
+      category: change.category ?? null,
+      // El borrador va en el payload, así que un reenvío del mismo día manda
+      // exactamente el mismo texto en lugar de pedirlo otra vez.
+      draft_message: change.draft_message ?? null,
       title: change.title ?? '',
       summary: change.summary ?? '',
       what_changed: change.what_changed ?? '',

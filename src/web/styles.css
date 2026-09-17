@@ -908,6 +908,18 @@ select {
   word-break: break-word;
   color: var(--fg-2);
 }
+/* El borrador de mensaje: texto para copiar, no una nota del sistema. Se
+   marca con una línea a la izquierda y se deja seleccionable y en su color
+   normal, porque lo que se hace con él es leerlo entero y llevárselo. */
+.draft {
+  margin-top: 10px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--fg);
+  white-space: pre-wrap;
+  user-select: text;
+}
+
 .error-text { margin-top: 12px; font-size: 12.5px; color: var(--bad); }
 
 .digest-section { border-top: 1px solid var(--line-soft); padding: 16px 0 4px; }
