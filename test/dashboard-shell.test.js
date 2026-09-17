@@ -9,6 +9,7 @@ const read = (file) => fs.readFileSync(path.join(WEB_DIR, file), 'utf8');
 
 const html = read('index.html');
 const app = read('app.js');
+const css = read('styles.css');
 
 test('the list of websites cannot be changed from the dashboard', () => {
   // The 27 clubs live in src/config/sites.js. Nobody adds or removes them here.
@@ -62,10 +63,31 @@ test('the four pages are one product, not four loose HTML files', () => {
   for (const id of ['page-summary', 'page-websites', 'page-workers', 'page-activity']) {
     assert.ok(html.includes(`id="${id}"`), `${id} lives in the same shell`);
   }
-  // One navigation, one topbar, one stylesheet: the shell is shared.
-  assert.equal((html.match(/<nav id="tabs"/g) ?? []).length, 1);
+  // One navigation, one header, one stylesheet: the shell is shared.
+  assert.equal((html.match(/id="tabs"/g) ?? []).length, 1, 'a single navigation');
   assert.equal((html.match(/<link rel="stylesheet"/g) ?? []).length, 1);
-  assert.ok(html.includes('id="sidebar"'), 'the fixed sidebar is the navigation');
+  assert.ok(html.includes('class="header"'), 'the top header carries the navigation');
+  // Below 900px the same tabs fold into one sheet, built from them in JS, so
+  // there is never a second hand-written list of pages to fall out of sync.
+  assert.ok(html.includes('id="mobile-nav"'), 'and a mobile sheet to fold into');
+  assert.ok(app.includes('function buildMobileNav'), 'built from the header tabs');
+  assert.ok(!html.includes('id="sidebar"'), 'no sidebar: the tables need the width');
+});
+
+test('the tables read as tables on a phone, not as a sideways scroll', () => {
+  // Every cell carries its own column name, so a row stacks into a legible
+  // block instead of forcing a horizontal drag on a 390px screen.
+  assert.ok(app.includes('const label = (node, text)'), 'cells are labelled');
+  assert.ok(css.includes('content: attr(data-label)'), 'and the label is what mobile prints');
+  assert.ok(css.includes('overflow-x: visible'), 'the sideways scroll is switched off there');
+});
+
+test('the ambient background is decoration the app can lose', () => {
+  // It must never be load-bearing: no layout, no events, no dependency.
+  assert.ok(css.includes('prefers-reduced-motion'), 'motion is opt-out');
+  assert.ok(css.includes('pointer-events: none'), 'it never swallows a click');
+  assert.ok(!html.includes('<canvas'), 'no canvas');
+  assert.ok(!/<script[^>]*src="https?:/.test(html), 'no third-party script');
 });
 
 test('the report card states the behaviour instead of leaving it to be guessed', () => {

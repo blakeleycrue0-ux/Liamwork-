@@ -3,192 +3,149 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Web Monitor · Panel</title>
+  <meta name="theme-color" content="#000000">
+  <title>WebMonitor</title>
   <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
 <!--
   Los iconos viven una sola vez aquí y se usan con <use href="#i-…">.
-  Son trazos de 24×24 al estilo Lucide: el mismo grosor, el mismo redondeo y
-  siempre currentColor, para que hereden el color del sitio donde se ponen.
-  No hay emojis en el panel, ni un logotipo inventado: sólo estos signos.
+  Trazos de 24×24, mismo grosor, mismo redondeo, siempre currentColor. No hay
+  ni un emoji, ni una ilustración, ni un símbolo inventado: sólo los signos
+  que una fila o un botón necesitan para leerse.
 -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <symbol id="i-summary" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
-    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/></symbol>
-    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 20v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
-    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
-    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
-    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
-    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
     <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="m2 7 10 6 10-6"/></symbol>
     <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
-    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
     <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
-    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17.5v.01"/></symbol>
     <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></symbol>
-    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M10 4v16M14 4v16"/></symbol>
-    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M10 5v14M14 5v14"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></symbol>
-    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></symbol>
-    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-    <symbol id="i-external" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></symbol>
   </defs>
 </svg>
 
-<div class="app">
+<!-- Fondo: dos luces muy lentas y un grano finísimo. Nada más. -->
+<div class="ambient" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
 
-  <!-- ===================== NAVEGACIÓN ===================== -->
-  <aside class="sidebar" id="sidebar">
-    <div class="brand">
-      <span class="brand-name">
-        Web <b>Monitor</b>
-        <span class="brand-sub">Vigilancia de webs de clubes</span>
-      </span>
-    </div>
+<div class="shell">
 
-    <nav id="tabs" class="nav-group">
-      <button class="nav-item active" data-page="summary">
-        <svg class="icon"><use href="#i-summary"/></svg>Resumen
-      </button>
-      <button class="nav-item" data-page="websites">
-        <svg class="icon"><use href="#i-globe"/></svg>Webs
-      </button>
-      <button class="nav-item" data-page="workers">
-        <svg class="icon"><use href="#i-users"/></svg>Trabajadores
-      </button>
-      <button class="nav-item" data-page="activity">
-        <svg class="icon"><use href="#i-activity"/></svg>Actividad
-      </button>
-      <button class="nav-item" data-page="users" id="tab-users" hidden>
-        <svg class="icon"><use href="#i-shield"/></svg>Usuarios
-      </button>
-      <button class="nav-item" data-page="settings">
-        <svg class="icon"><use href="#i-settings"/></svg>Configuración
-      </button>
-    </nav>
+  <header class="header">
+    <div class="header-inner">
+      <a class="wordmark" href="/" aria-label="WebMonitor">
+        <span class="w">Web</span><span class="m">Monitor</span>
+      </a>
 
-    <div class="nav-spacer"></div>
-    <div class="sidebar-foot" id="sidebar-foot">—</div>
-  </aside>
-  <div class="sidebar-scrim" id="sidebar-scrim"></div>
+      <nav class="nav" id="tabs" aria-label="Secciones">
+        <button class="nav-item active" data-page="summary">Resumen</button>
+        <button class="nav-item" data-page="websites">Webs</button>
+        <button class="nav-item" data-page="workers">Trabajadores</button>
+        <button class="nav-item" data-page="activity">Actividad</button>
+        <button class="nav-item" data-page="users" id="tab-users" hidden>Usuarios</button>
+      </nav>
 
-  <div class="main">
-    <header class="topbar">
-      <div class="topbar-inner">
-        <button class="btn-ghost icon-btn menu-btn" id="menu-btn" aria-label="Abrir el menú">
+      <div class="header-right">
+        <span class="sys" id="sys-state" title="Estado del sistema">
+          <span class="dot off" id="sys-dot"></span>
+          <span class="label" id="sys-label">—</span>
+        </span>
+        <button class="btn-ghost icon-btn" id="run-now" title="Comprobar las webs ahora" aria-label="Comprobar ahora">
+          <svg class="icon"><use href="#i-refresh"/></svg>
+        </button>
+        <button class="btn-ghost icon-btn" id="nav-settings" title="Configuración" aria-label="Configuración">
+          <svg class="icon"><use href="#i-settings"/></svg>
+        </button>
+        <span class="avatar" id="avatar" title="">—</span>
+        <button class="btn-ghost icon-btn" id="logout" hidden title="Salir" aria-label="Salir">
+          <svg class="icon"><use href="#i-logout"/></svg>
+        </button>
+        <button class="btn-ghost icon-btn menu-btn" id="menu-btn" aria-label="Abrir el menú" aria-expanded="false">
           <svg class="icon"><use href="#i-menu"/></svg>
         </button>
-        <span class="topbar-title" id="topbar-title">Resumen</span>
-        <div class="topbar-right">
-          <span class="clock" id="clock"><svg class="icon icon-sm"><use href="#i-clock"/></svg></span>
-          <span id="current-user"></span>
-          <button class="btn-ghost btn-sm" id="logout" hidden>
-            <svg class="icon icon-sm"><use href="#i-logout"/></svg>Salir
-          </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mobile-nav" id="mobile-nav"></div>
+
+  <main class="content">
+
+    <!-- ===================== RESUMEN ===================== -->
+    <section class="page active" id="page-summary">
+
+      <div class="hero">
+        <div class="eyebrow">WebMonitor</div>
+        <h1 id="hero-title">Todo bajo control.</h1>
+        <div class="hero-line" id="hero-line">
+          <span class="dim">Cargando el estado del sistema…</span>
         </div>
       </div>
-    </header>
 
-    <main class="content container">
+      <div class="metrics">
+        <div class="metric">
+          <div class="value" id="s-websites">—</div>
+          <div class="label">Webs vigiladas</div>
+          <div class="note" id="s-websites-sub"></div>
+        </div>
+        <div class="metric is-ok">
+          <div class="value" id="s-ok">—</div>
+          <div class="label">Correctas</div>
+          <div class="note" id="s-ok-sub"></div>
+        </div>
+        <div class="metric" id="metric-bad">
+          <div class="value" id="s-bad">—</div>
+          <div class="label">Con error</div>
+          <div class="note" id="s-bad-sub"></div>
+        </div>
+        <div class="metric">
+          <div class="value" id="s-news">—</div>
+          <div class="label">Cambios pendientes</div>
+          <div class="note" id="s-news-sub"></div>
+        </div>
+        <div class="metric">
+          <div class="value" id="s-workers">—</div>
+          <div class="label">Trabajadores</div>
+          <div class="note" id="s-workers-sub"></div>
+        </div>
+        <div class="metric">
+          <div class="value" id="s-errors">—</div>
+          <div class="label">Errores 24 h</div>
+          <div class="note" id="s-errors-sub"></div>
+        </div>
+      </div>
 
-      <!-- ===================== RESUMEN ===================== -->
-      <section class="page active" id="page-summary">
-        <div class="page-head">
-          <div>
-            <div class="greeting"><h1 id="greeting">Hola</h1></div>
-            <div class="state-line" id="system-state">Cargando el estado del sistema…</div>
-          </div>
-          <div class="head-actions">
-            <button class="btn-sm" id="run-now">
-              <svg class="icon icon-sm"><use href="#i-refresh"/></svg>Comprobar ahora
+      <div class="cols">
+        <!-- El informe diario: la razón de ser del producto. -->
+        <section class="panel lead">
+          <div class="panel-head">
+            <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-mail"/></svg>
+            <span class="eyebrow">Informe diario</span>
+            <span class="spacer"></span>
+            <button class="btn-sm btn-ghost" id="digest-preview">
+              <svg class="icon icon-sm"><use href="#i-eye"/></svg>Ver borrador
+            </button>
+            <button class="btn-sm btn-primary" id="digest-send">
+              <svg class="icon icon-sm"><use href="#i-send"/></svg>Enviar ahora
             </button>
           </div>
-        </div>
-
-        <!-- 1 · Las cifras del sistema, todas a la vista -->
-        <div class="grid-4">
-          <div class="card stat tight" id="stat-crawler">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-pulse"/></svg></span>
-              <span class="label">Estado del sistema</span>
-            </div>
-            <div class="value" id="s-crawler">—</div>
-            <div class="sub" id="s-crawler-sub">—</div>
-          </div>
-          <div class="card stat tight is-accent">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-globe"/></svg></span>
-              <span class="label">Webs vigiladas</span>
-            </div>
-            <div class="value" id="s-websites">—</div>
-            <div class="sub" id="s-websites-sub">—</div>
-          </div>
-          <div class="card stat tight is-ok">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-check-circle"/></svg></span>
-              <span class="label">Webs correctas</span>
-            </div>
-            <div class="value" id="s-ok">—</div>
-            <div class="sub" id="s-ok-sub">—</div>
-          </div>
-          <div class="card stat tight is-bad" id="stat-bad">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-alert"/></svg></span>
-              <span class="label">Webs con error</span>
-            </div>
-            <div class="value" id="s-bad">—</div>
-            <div class="sub" id="s-bad-sub">—</div>
-          </div>
-          <div class="card stat tight is-violet">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-users"/></svg></span>
-              <span class="label">Trabajadores activos</span>
-            </div>
-            <div class="value" id="s-workers">—</div>
-            <div class="sub" id="s-workers-sub">—</div>
-          </div>
-          <div class="card stat tight is-info">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-clock"/></svg></span>
-              <span class="label">Última comprobación</span>
-            </div>
-            <div class="value" id="s-last-check">—</div>
-            <div class="sub" id="s-last-check-sub">—</div>
-          </div>
-          <div class="card stat tight is-accent">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-inbox"/></svg></span>
-              <span class="label">Cambios pendientes</span>
-            </div>
-            <div class="value" id="s-news">—</div>
-            <div class="sub" id="s-news-sub">—</div>
-          </div>
-          <div class="card stat tight is-warn">
-            <div class="stat-top">
-              <span class="stat-icon"><svg class="icon"><use href="#i-alert"/></svg></span>
-              <span class="label">Errores en 24 h</span>
-            </div>
-            <div class="value" id="s-errors">—</div>
-            <div class="sub" id="s-errors-sub">—</div>
-          </div>
-        </div>
-
-        <!-- 2 · El informe de mañana, con el comportamiento que está activo -->
-        <div class="hero section">
-          <div class="grow">
-            <div class="eyebrow"><svg class="icon icon-sm"><use href="#i-mail"/></svg>Informe de mañana</div>
-            <h2 id="digest-headline">—</h2>
-            <div class="meta" id="digest-meta">—</div>
+          <div class="panel-body">
+            <div class="report-title" id="digest-headline">—</div>
+            <div class="report-sub" id="digest-meta">—</div>
 
             <dl class="kv">
               <div>
@@ -196,12 +153,12 @@
                 <dd id="digest-next">—</dd>
               </div>
               <div>
-                <dt>Cambios pendientes</dt>
-                <dd id="digest-pending">—</dd>
+                <dt>Último enviado</dt>
+                <dd id="digest-last">—</dd>
               </div>
               <div>
-                <dt>Último informe enviado</dt>
-                <dd id="digest-last">—</dd>
+                <dt>Cambios detectados</dt>
+                <dd id="digest-pending">—</dd>
               </div>
               <div>
                 <dt>Envío sin cambios</dt>
@@ -209,273 +166,279 @@
               </div>
             </dl>
 
-            <div class="attempt mute" id="digest-attempt" hidden></div>
+            <div class="attempt" id="digest-attempt" hidden></div>
           </div>
-          <div class="head-actions">
-            <button id="digest-preview">
-              <svg class="icon icon-sm"><use href="#i-eye"/></svg>Ver borrador
-            </button>
-            <button class="btn-primary" id="digest-send">
-              <svg class="icon icon-sm"><use href="#i-send"/></svg>Enviar ahora
-            </button>
-          </div>
-        </div>
+        </section>
 
-        <!-- 3 · Actividad reciente, en lista compacta -->
-        <div class="section">
-          <div class="section-head">
-            <h2><svg class="icon icon-sm"><use href="#i-activity"/></svg>Actividad reciente</h2>
-            <span class="spacer"></span>
-            <button class="btn-ghost btn-sm" data-goto="activity">Ver todo el registro</button>
+        <!-- Estado del sistema, en filas finas. -->
+        <section class="panel">
+          <div class="panel-head">
+            <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-pulse"/></svg>
+            <span class="eyebrow">Estado del sistema</span>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Web</th><th>Tipo</th><th>Resumen</th>
-                  <th>Fecha</th><th>Prioridad</th><th>Estado</th>
-                </tr>
-              </thead>
-              <tbody id="recent-posts"></tbody>
-            </table>
+          <div class="panel-body">
+            <dl class="rows" id="system-rows"></dl>
           </div>
-        </div>
+        </section>
+      </div>
 
-        <!-- 4 · Las 27 webs, con su estado real -->
-        <div class="section">
-          <div class="section-head">
-            <h2><svg class="icon icon-sm"><use href="#i-globe"/></svg>Webs vigiladas</h2>
-            <span class="spacer"></span>
-            <button class="btn-ghost btn-sm" data-goto="websites">Gestionar</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Web</th><th>Estado</th><th>Última comprobación</th>
-                  <th>Último cambio</th><th>Error</th>
-                </tr>
-              </thead>
-              <tbody id="summary-websites"></tbody>
-            </table>
-          </div>
+      <div class="section">
+        <div class="section-head">
+          <h2>Actividad reciente</h2>
+          <span class="spacer"></span>
+          <button class="btn-ghost btn-sm" data-goto="activity">Ver el registro completo</button>
         </div>
-
-        <!-- 5 · Cómo funciona, en tres pasos y sin ocupar media pantalla -->
-        <div class="section">
-          <div class="section-head">
-            <h2><svg class="icon icon-sm"><use href="#i-file"/></svg>Cómo funciona</h2>
-          </div>
-          <div class="steps">
-            <div class="step">
-              <span class="n">1</span>
-              <div>
-                <h3>Lectura, dos veces al día</h3>
-                <p>De cada web se leen su listado y sus páginas recientes. El texto se limpia —fuera menús, cookies y contadores— y se guarda. Es lectura normal de páginas: no cuesta nada.</p>
-              </div>
-            </div>
-            <div class="step">
-              <span class="n">2</span>
-              <div>
-                <h3>Claude decide qué cambió</h3>
-                <p>Sólo llegan al modelo las páginas cuyo texto se ha movido, y sólo las líneas que cambiaron. Clasifica en NUEVO, ACTUALIZADO, SIN CAMBIOS o IRRELEVANTE, con su prioridad.</p>
-              </div>
-            </div>
-            <div class="step">
-              <span class="n">3</span>
-              <div>
-                <h3>Un correo cada mañana</h3>
-                <p>Un único email con lo del día anterior, ordenado por prioridad. Cada veredicto queda guardado junto a lo que vio el modelo, para poder revisarlo.</p>
-              </div>
-            </div>
-          </div>
+        <div class="table">
+          <table>
+            <thead>
+              <tr>
+                <th>Hora</th><th>Web</th><th>Evento</th>
+                <th>Resultado</th><th>Prioridad</th><th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="recent-posts"></tbody>
+          </table>
         </div>
-      </section>
+      </div>
 
-      <!-- ===================== WEBS ===================== -->
-      <section class="page" id="page-websites">
-        <div class="page-head">
-          <div>
-            <h1>Webs</h1>
-            <p>La lista está fijada en el código. Desde aquí se comprueban, se revisa su historial y se ajusta cómo se lee cada una.</p>
-          </div>
+      <div class="section">
+        <div class="section-head">
+          <h2>Webs vigiladas</h2>
+          <span class="count" id="summary-web-count"></span>
+          <span class="spacer"></span>
+          <button class="btn-ghost btn-sm" data-goto="websites">Gestionar</button>
         </div>
-
-        <div class="filters">
-          <label class="search" style="margin:0">
-            <svg class="icon"><use href="#i-search"/></svg>
-            <input type="text" id="web-search" placeholder="Buscar por nombre o dirección" autocomplete="off">
-          </label>
-          <select id="web-filter" aria-label="Filtrar por estado">
-            <option value="all">Todos los estados</option>
-            <option value="ok">Correctas</option>
-            <option value="error">Con error</option>
-            <option value="off">Desactivadas</option>
-          </select>
-          <span class="count" id="web-count"></span>
-        </div>
-
-        <div class="table-wrap">
+        <div class="table">
           <table>
             <thead>
               <tr>
                 <th>Web</th><th>Estado</th><th>Última comprobación</th>
-                <th>Último cambio</th><th>Error</th><th></th>
+                <th>Último cambio</th><th>Error</th>
               </tr>
             </thead>
-            <tbody id="websites-body"></tbody>
+            <tbody id="summary-websites"></tbody>
           </table>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <!-- ===================== TRABAJADORES ===================== -->
-      <section class="page" id="page-workers">
-        <div class="page-head">
-          <div>
-            <h1>Trabajadores</h1>
-            <p>Quién recibe el informe diario. No entran al panel: sólo reciben el correo.</p>
-          </div>
-          <div class="head-actions">
-            <button class="btn-sm" id="test-email-all">
-              <svg class="icon icon-sm"><use href="#i-mail"/></svg>Email de prueba a todos
-            </button>
-            <button class="btn-primary btn-sm" id="add-worker">
-              <svg class="icon icon-sm"><use href="#i-plus"/></svg>Añadir trabajador
-            </button>
-          </div>
+    <!-- ===================== WEBS ===================== -->
+    <section class="page" id="page-websites">
+      <div class="hero">
+        <div class="eyebrow">Webs</div>
+        <h1>Las webs vigiladas.</h1>
+        <div class="hero-line">
+          <span>La lista está fijada en el código. Desde aquí se comprueban, se revisa su historial y se ajusta cómo se lee cada una.</span>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Última actividad</th><th></th></tr>
-            </thead>
-            <tbody id="workers-body"></tbody>
-          </table>
-        </div>
-      </section>
+      </div>
 
-      <!-- ===================== ACTIVIDAD ===================== -->
-      <section class="page" id="page-activity">
-        <div class="page-head">
-          <div>
-            <h1>Actividad</h1>
-            <p>Un registro único: cada comprobación, cada cambio que Claude juzgó —incluido lo que descartó— y cada intento de enviar el informe. Pulsa un cambio para ver por qué se decidió así.</p>
-          </div>
-        </div>
+      <div class="filters">
+        <label class="search" style="margin:0">
+          <svg class="icon"><use href="#i-search"/></svg>
+          <input type="text" id="web-search" placeholder="Buscar por nombre o dirección" autocomplete="off">
+        </label>
+        <select id="web-filter" aria-label="Filtrar por estado">
+          <option value="all">Todos los estados</option>
+          <option value="ok">Correctas</option>
+          <option value="error">Con error</option>
+          <option value="off">Desactivadas</option>
+        </select>
+        <span class="count" id="web-count"></span>
+      </div>
 
-        <div class="filters">
-          <label class="search" style="margin:0">
-            <svg class="icon"><use href="#i-search"/></svg>
-            <input type="text" id="act-search" placeholder="Buscar en el registro" autocomplete="off">
-          </label>
-          <select id="act-web" aria-label="Filtrar por web">
-            <option value="all">Todas las webs</option>
-          </select>
-          <select id="act-kind" aria-label="Filtrar por tipo">
-            <option value="all">Todos los tipos</option>
-            <option value="check">Comprobaciones</option>
-            <option value="change">Cambios detectados</option>
-            <option value="report">Informes</option>
-          </select>
-          <select id="activity-filter" aria-label="Filtrar por resultado">
-            <option value="all">Todos los resultados</option>
-            <option value="errors">Sólo errores</option>
-            <option value="ok">Sólo correctos</option>
-          </select>
-          <select id="act-date" aria-label="Filtrar por fecha">
-            <option value="all">Cualquier fecha</option>
-            <option value="today">Hoy</option>
-            <option value="7">Últimos 7 días</option>
-            <option value="30">Últimos 30 días</option>
-          </select>
-          <span class="count" id="act-count"></span>
-        </div>
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>Web</th><th>Estado</th><th>Última comprobación</th>
+              <th>Último cambio</th><th>Error</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="websites-body"></tbody>
+        </table>
+      </div>
+    </section>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha y hora</th><th>Web</th><th>Acción</th>
-                <th>Resultado</th><th>Detalles</th>
-              </tr>
-            </thead>
-            <tbody id="activity-body"></tbody>
-          </table>
+    <!-- ===================== TRABAJADORES ===================== -->
+    <section class="page" id="page-workers">
+      <div class="hero">
+        <div class="eyebrow">Trabajadores</div>
+        <h1>Quién recibe el informe.</h1>
+        <div class="hero-line">
+          <span>No entran al panel: sólo reciben el correo de cada mañana.</span>
         </div>
-      </section>
+      </div>
 
-      <!-- ===================== USUARIOS ===================== -->
-      <section class="page" id="page-users">
-        <div class="page-head">
-          <div>
-            <h1>Usuarios</h1>
-            <p>Quién entra al panel. No confundir con los trabajadores, que sólo reciben el informe.</p>
-          </div>
-          <div class="head-actions">
-            <button class="btn-primary btn-sm" id="add-user">
-              <svg class="icon icon-sm"><use href="#i-plus"/></svg>Añadir usuario
-            </button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Email</th><th>Alta</th><th>Último acceso</th><th></th></tr></thead>
-            <tbody id="users-body"></tbody>
-          </table>
-        </div>
-      </section>
+      <div class="filters">
+        <button class="btn-sm" id="test-email-all">
+          <svg class="icon icon-sm"><use href="#i-mail"/></svg>Email de prueba a todos
+        </button>
+        <button class="btn-sm btn-primary" id="add-worker">
+          <svg class="icon icon-sm"><use href="#i-plus"/></svg>Añadir trabajador
+        </button>
+        <span class="count" id="worker-count"></span>
+      </div>
 
-      <!-- ===================== CONFIGURACIÓN ===================== -->
-      <section class="page" id="page-settings">
-        <div class="page-head">
-          <div>
-            <h1>Configuración</h1>
-            <p>Cuándo se comprueba, cuándo sale el informe y qué hace el sistema un día sin novedades.</p>
-          </div>
-        </div>
+      <div class="table">
+        <table>
+          <thead>
+            <tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Última actividad</th><th></th></tr>
+          </thead>
+          <tbody id="workers-body"></tbody>
+        </table>
+      </div>
+    </section>
 
-        <form id="settings-form">
-          <div class="card">
-            <div class="section-head" style="margin-bottom:14px">
-              <h2><svg class="icon icon-sm"><use href="#i-mail"/></svg>Informe diario</h2>
+    <!-- ===================== ACTIVIDAD ===================== -->
+    <section class="page" id="page-activity">
+      <div class="hero">
+        <div class="eyebrow">Actividad</div>
+        <h1>El registro completo.</h1>
+        <div class="hero-line">
+          <span>Cada comprobación, cada veredicto de Claude —incluido lo que descartó— y cada intento de enviar el informe.</span>
+        </div>
+      </div>
+
+      <div class="filters">
+        <label class="search" style="margin:0">
+          <svg class="icon"><use href="#i-search"/></svg>
+          <input type="text" id="act-search" placeholder="Buscar en el registro" autocomplete="off">
+        </label>
+        <select id="act-web" aria-label="Filtrar por web">
+          <option value="all">Todas las webs</option>
+        </select>
+        <select id="act-kind" aria-label="Filtrar por evento">
+          <option value="all">Todos los eventos</option>
+          <option value="check">Comprobaciones</option>
+          <option value="change">Cambios detectados</option>
+          <option value="report">Informes</option>
+        </select>
+        <select id="activity-filter" aria-label="Filtrar por resultado">
+          <option value="all">Todos los resultados</option>
+          <option value="errors">Sólo errores</option>
+          <option value="ok">Sólo correctos</option>
+        </select>
+        <select id="act-date" aria-label="Filtrar por fecha">
+          <option value="all">Cualquier fecha</option>
+          <option value="today">Hoy</option>
+          <option value="7">Últimos 7 días</option>
+          <option value="30">Últimos 30 días</option>
+        </select>
+        <span class="count" id="act-count"></span>
+      </div>
+
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>Hora</th><th>Web</th><th>Evento</th>
+              <th>Resultado</th><th>Prioridad</th><th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="activity-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== USUARIOS ===================== -->
+    <section class="page" id="page-users">
+      <div class="hero">
+        <div class="eyebrow">Usuarios</div>
+        <h1>Quién entra al panel.</h1>
+        <div class="hero-line">
+          <span>No confundir con los trabajadores, que sólo reciben el informe.</span>
+        </div>
+      </div>
+
+      <div class="filters">
+        <button class="btn-sm btn-primary" id="add-user">
+          <svg class="icon icon-sm"><use href="#i-plus"/></svg>Añadir usuario
+        </button>
+      </div>
+
+      <div class="table">
+        <table>
+          <thead><tr><th>Email</th><th>Alta</th><th>Último acceso</th><th></th></tr></thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== CONFIGURACIÓN ===================== -->
+    <section class="page" id="page-settings">
+      <div class="hero">
+        <div class="eyebrow">Configuración</div>
+        <h1>Cuándo mira y cuándo avisa.</h1>
+        <div class="hero-line">
+          <span>Qué hace el sistema un día sin novedades, cada cuánto comprueba y por dónde sale el correo.</span>
+        </div>
+      </div>
+
+      <form id="settings-form">
+        <div class="cols" style="margin-top:0">
+          <section class="panel">
+            <div class="panel-head">
+              <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-mail"/></svg>
+              <span class="eyebrow">Informe diario</span>
             </div>
-            <div class="form-row">
-              <div>
-                <label for="notification_mode">Modo</label>
-                <select id="notification_mode" name="notification_mode">
-                  <option value="digest">Un informe al día</option>
-                  <option value="instant">Un email por cada novedad</option>
-                </select>
+            <div class="panel-body">
+              <div class="form-row">
+                <div>
+                  <label for="notification_mode">Modo</label>
+                  <select id="notification_mode" name="notification_mode">
+                    <option value="digest">Un informe al día</option>
+                    <option value="instant">Un email por cada novedad</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="digest_hour">Hora</label>
+                  <input id="digest_hour" name="digest_hour" type="number" min="0" max="23">
+                  <div class="hint">Hora local, formato 24 h.</div>
+                </div>
+                <div>
+                  <label for="digest_timezone">Zona horaria</label>
+                  <input id="digest_timezone" name="digest_timezone" type="text" placeholder="Europe/Madrid">
+                </div>
               </div>
-              <div>
-                <label for="digest_hour">Hora del informe</label>
-                <input id="digest_hour" name="digest_hour" type="number" min="0" max="23">
-                <div class="hint">Hora local, en formato 24 h.</div>
+              <div class="checkbox">
+                <input type="checkbox" id="report_send_when_empty" name="report_send_when_empty">
+                <label for="report_send_when_empty">
+                  Enviar el informe también los días sin cambios, diciendo «Sin cambios relevantes».
+                  Desactivado, un día tranquilo no genera ningún correo.
+                </label>
               </div>
-              <div>
-                <label for="digest_timezone">Zona horaria</label>
-                <input id="digest_timezone" name="digest_timezone" type="text" placeholder="Europe/Madrid">
+              <div class="checkbox">
+                <input type="checkbox" id="digest_ai_enabled" name="digest_ai_enabled">
+                <label for="digest_ai_enabled">Redactar el resumen del informe con IA (una llamada al día)</label>
+              </div>
+              <div class="checkbox">
+                <input type="checkbox" id="notify_on_first_check" name="notify_on_first_check">
+                <label for="notify_on_first_check">Avisar también en la primera comprobación de una web</label>
               </div>
             </div>
-            <div class="checkbox">
-              <input type="checkbox" id="report_send_when_empty" name="report_send_when_empty">
-              <label for="report_send_when_empty" style="margin:0">
-                Enviar el informe también los días sin cambios, diciendo «Sin cambios relevantes».
-                Desactivado, un día tranquilo no genera ningún correo.
-              </label>
-            </div>
-            <div class="checkbox">
-              <input type="checkbox" id="digest_ai_enabled" name="digest_ai_enabled">
-              <label for="digest_ai_enabled" style="margin:0">
-                Redactar el resumen del informe con IA (una llamada al día)
-              </label>
-            </div>
-          </div>
+          </section>
 
-          <div class="card section">
-            <div class="section-head" style="margin-bottom:14px">
-              <h2><svg class="icon icon-sm"><use href="#i-refresh"/></svg>Comprobaciones</h2>
+          <section class="panel">
+            <div class="panel-head">
+              <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-send"/></svg>
+              <span class="eyebrow">Correo saliente</span>
             </div>
+            <div class="panel-body">
+              <p class="muted" id="mail-info" style="font-size:13px">—</p>
+              <p class="hint">Las credenciales SMTP viven en variables de entorno, nunca en el panel.</p>
+              <div class="form-actions" style="margin-top:18px">
+                <button type="button" class="btn-sm" id="verify-mail">Verificar SMTP</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel section">
+          <div class="panel-head">
+            <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-refresh"/></svg>
+            <span class="eyebrow">Comprobaciones</span>
+          </div>
+          <div class="panel-body">
             <div class="form-row">
               <div>
                 <label for="default_check_interval">Intervalo por defecto (s)</label>
@@ -489,12 +452,10 @@
                 <label for="crawler_concurrency">En paralelo</label>
                 <input id="crawler_concurrency" name="crawler_concurrency" type="number" min="1" max="64">
               </div>
-            </div>
-            <div class="form-row">
               <div>
                 <label for="max_items_per_email">Máx. novedades por email</label>
                 <input id="max_items_per_email" name="max_items_per_email" type="number" min="1" max="100">
-                <div class="hint">Lo que no cabe no se pierde: espera al informe siguiente.</div>
+                <div class="hint">Lo que no cabe espera al informe siguiente.</div>
               </div>
               <div>
                 <label for="log_retention_days">Retención de logs (días)</label>
@@ -507,44 +468,31 @@
             </div>
             <div class="checkbox">
               <input type="checkbox" id="crawler_enabled" name="crawler_enabled">
-              <label for="crawler_enabled" style="margin:0">Crawler activo</label>
-            </div>
-            <div class="checkbox">
-              <input type="checkbox" id="notify_on_first_check" name="notify_on_first_check">
-              <label for="notify_on_first_check" style="margin:0">Avisar también en la primera comprobación de una web</label>
+              <label for="crawler_enabled">Crawler activo</label>
             </div>
             <div class="checkbox">
               <input type="checkbox" id="ai_recovery_enabled" name="ai_recovery_enabled">
-              <label for="ai_recovery_enabled" style="margin:0">Reparar la detección con IA cuando una web deje de dar resultados</label>
+              <label for="ai_recovery_enabled">Reparar la detección con IA cuando una web deje de dar resultados</label>
             </div>
           </div>
+        </section>
 
-          <div class="modal-actions">
-            <button type="button" class="btn-sm" id="verify-mail">Verificar SMTP</button>
-            <button class="btn-primary" type="submit">
-              <svg class="icon icon-sm"><use href="#i-check"/></svg>Guardar cambios
-            </button>
-          </div>
-        </form>
-
-        <div class="card section">
-          <div class="section-head" style="margin-bottom:12px">
-            <h2><svg class="icon icon-sm"><use href="#i-send"/></svg>Correo saliente</h2>
-          </div>
-          <p class="muted" id="mail-info">—</p>
-          <p class="hint">Las credenciales SMTP viven en variables de entorno, nunca en el panel.</p>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">
+            <svg class="icon icon-sm"><use href="#i-check"/></svg>Guardar cambios
+          </button>
         </div>
-      </section>
-    </main>
+      </form>
+    </section>
+  </main>
 
-    <footer class="credit">
-      <span id="footer-credit"></span>
-      <a href="/legal">Aviso legal</a>
-      <a href="/terminos">Términos de uso</a>
-      <a href="/privacidad">Privacidad</a>
-      <a href="/cookies">Cookies</a>
-    </footer>
-  </div>
+  <footer class="credit">
+    <span id="footer-credit"></span>
+    <a href="/legal">Aviso legal</a>
+    <a href="/terminos">Términos de uso</a>
+    <a href="/privacidad">Privacidad</a>
+    <a href="/cookies">Cookies</a>
+  </footer>
 </div>
 
 <div id="modal-root"></div>

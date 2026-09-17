@@ -61,7 +61,7 @@ test('the dashboard shell is public in bearer mode, the API is not', async () =>
   // would bounce the browser to /login forever. The shell holds no data.
   const shell = await call('/');
   assert.equal(shell.status, 200);
-  assert.match(await shell.text(), /Web Monitor/);
+  assert.match(await shell.text(), /WebMonitor/);
 
   assert.equal((await call('/api/status')).status, 401);
 });
