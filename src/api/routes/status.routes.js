@@ -7,6 +7,7 @@ import { countErrorsSince, lastCheckedAt, listLogs } from '../../db/repositories
 import { getState } from '../../db/repositories/crawlerState.repo.js';
 import { getInt } from '../../db/repositories/settings.repo.js';
 import { runPipeline } from '../../monitor/index.js';
+import { crawlerHealth } from '../../monitor/health.js';
 import { reportStatus } from '../../monitor/report.js';
 import { asyncHandler } from '../middleware/errors.js';
 
@@ -35,21 +36,26 @@ statusRoutes.get(
 
     const reportable = recentChanges.filter((change) => ['NEW', 'UPDATED'].includes(change.change_type));
 
-    // The crawler is considered alive while its heartbeat is recent.
-    const heartbeat = state.last_heartbeat_at ? new Date(state.last_heartbeat_at).getTime() : 0;
-    const staleAfterMs = Math.max(90_000, tick * 3000);
-    const alive = Date.now() - heartbeat < staleAfterMs;
+    // Vivo NO es "ha latido hace noventa segundos". En producción no hay un
+    // proceso latiendo: hay un cron que dispara dos veces al día y la función
+    // muere al acabar. Ver src/monitor/health.js.
+    const health = crawlerHealth({
+      state,
+      scheduleUtc: config.crawler.scheduleUtc,
+      tickSeconds: tick,
+    });
 
     res.json({
       crawler: {
-        status: alive ? state.status : 'stopped',
-        alive,
+        status: health.state,
+        alive: health.alive,
         last_run_at: state.last_run_at,
-        next_run_at: state.next_run_at,
+        // La próxima la marca el horario del cron, no una columna que en
+        // serverless nadie rellena nunca.
+        next_run_at: health.next_run_at,
         last_run_duration_ms: state.last_run_duration_ms,
-        last_heartbeat_at: state.last_heartbeat_at,
-        pid: state.pid,
-        embedded: config.crawler.runInWeb,
+        overdue_by_ms: health.overdue_by_ms,
+        expected_gap_ms: health.expected_gap_ms,
       },
       websites,
       workers,
@@ -69,13 +75,46 @@ statusRoutes.get(
   }),
 );
 
-/** Manual "crawl and analyse everything right now". Sends no email. */
+/**
+ * "Revisa todo ahora mismo". No envía ningún correo.
+ *
+ * En serverless NO se puede hacer aquí dentro: esta función tiene diez
+ * segundos y una pasada real tarda casi cuatro minutos -233 segundos, medidos
+ * en producción-. Ejecutarla en línea garantizaba un tiempo de espera agotado,
+ * así que el botón del panel no ha funcionado nunca en el despliegue.
+ *
+ * Se hace lo mismo que el cron: entregar el trabajo a la función de fondo, que
+ * tiene quince minutos, y contestar al instante. En local no hay a quién
+ * entregárselo ni prisa por contestar, así que se ejecuta y se devuelve el
+ * recuento completo.
+ */
 statusRoutes.post(
   '/run-now',
   asyncHandler(async (req, res) => {
+    const base = process.env.URL || process.env.DEPLOY_PRIME_URL;
+
+    if (base) {
+      const response = await fetch(`${base}/.netlify/functions/crawl-background`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        return res.status(502).json({
+          ok: false,
+          error: `No se pudo lanzar la revisión (${response.status})`,
+        });
+      }
+      return res.json({
+        ok: true,
+        mode: 'background',
+        started_at: new Date().toISOString(),
+        message: 'Revisión lanzada. Tarda unos minutos en recorrer las webs.',
+      });
+    }
+
     const outcome = await runPipeline();
     res.json({
       ok: true,
+      mode: 'inline',
       websites: outcome.crawl.websites,
       pagesChanged: outcome.crawl.pagesChanged,
       analyzed: outcome.analysis.analyzed,

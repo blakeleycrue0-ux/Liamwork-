@@ -95,5 +95,10 @@ test('login works through the adapter and returns a session cookie', async (t) =
   const status = await call('/api/status', { cookie });
   const summary = await status.json();
   assert.equal(summary.workers.active, 2);
-  assert.equal(summary.crawler.status, 'stopped');
+  // Una base de datos recién creada nunca ha ejecutado el crawler. Eso no es
+  // "detenido" -no se ha parado nada- sino que todavía no ha empezado, que es
+  // justo lo que un despliegue nuevo tiene que poder decir de sí mismo.
+  assert.equal(summary.crawler.status, 'never');
+  assert.equal(summary.crawler.alive, false);
+  assert.ok(summary.crawler.next_run_at, 'y aun así sabe cuándo va a empezar');
 });

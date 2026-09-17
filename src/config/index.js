@@ -99,6 +99,15 @@ export const config = {
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) ' +
         'Chrome/140.0.0.0 Safari/537.36',
     runInWeb: bool(process.env.RUN_SCHEDULER_IN_WEB, true),
+    // Las horas UTC a las que dispara el cron. Tiene que coincidir con el
+    // literal `schedule` de netlify/functions/crawl-scheduled.mts -Netlify
+    // exige que aquello sea una constante-, y hay una prueba que comprueba
+    // que los dos dicen lo mismo. De aquí sale el plazo con el que el panel
+    // decide si una pasada se ha saltado.
+    scheduleUtc: (process.env.CRAWLER_SCHEDULE_UTC || '5,21')
+      .split(',')
+      .map((hour) => Number.parseInt(hour.trim(), 10))
+      .filter((hour) => Number.isInteger(hour) && hour >= 0 && hour <= 23),
   },
 
   mail: {

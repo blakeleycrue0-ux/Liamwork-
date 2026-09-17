@@ -354,7 +354,8 @@ const CRAWLER_STATES = {
   running: { kind: 'ok', label: 'Comprobando' },
   idle: { kind: 'ok', label: 'Sistema activo' },
   paused: { kind: 'warn', label: 'En pausa' },
-  stopped: { kind: 'off', label: 'Detenido' },
+  stalled: { kind: 'bad', label: 'Sin ejecutarse' },
+  never: { kind: 'off', label: 'Sin estrenar' },
 };
 
 /**
@@ -384,8 +385,13 @@ function initials(brand) {
 /** Una frase de estado que dice la verdad, no una que siempre suena bien. */
 function headline(data) {
   const failing = data.websites.failing ?? 0;
-  if (!data.crawler.alive) return 'El crawler no responde.';
-  if (failing) return failing === 1 ? 'Una web no responde.' : `${failing} webs no responden.`;
+  // "Sin ejecutarse" es lo único que justifica dar la alarma: quiere decir que
+  // el sistema se ha saltado una revisión entera. Que ahora mismo no haya un
+  // proceso corriendo no dice nada - entre revisión y revisión nunca lo hay.
+  if (data.crawler.status === 'stalled') return 'La vigilancia se ha detenido.';
+  if (data.crawler.status === 'paused') return 'Vigilancia en pausa.';
+  if (data.crawler.status === 'never') return 'Aún sin la primera revisión.';
+  if (failing) return failing === 1 ? 'Una web necesita atención.' : `${failing} webs necesitan atención.`;
   return 'Todo bajo control.';
 }
 
@@ -399,16 +405,15 @@ async function refreshStatus() {
   state.status = data;
 
   const crawler = data.crawler;
-  const key = !crawler.alive ? 'stopped' : crawler.status in CRAWLER_STATES ? crawler.status : 'idle';
-  const look = CRAWLER_STATES[key];
+  const look = CRAWLER_STATES[crawler.status] ?? CRAWLER_STATES.idle;
   const failing = data.websites.failing ?? 0;
 
   /* --- header --- */
   const sysDot = $('#sys-dot');
-  sysDot.className = `dot ${look.kind}${crawler.status === 'running' && crawler.alive ? ' pulse' : ''}`;
+  sysDot.className = `dot ${look.kind}${crawler.status === 'running' ? ' pulse' : ''}`;
   $('#sys-label').textContent = look.label;
   $('#sys-state').title = crawler.last_run_at
-    ? `${look.label} · última pasada ${fmtAgo(crawler.last_run_at)}`
+    ? `${look.label} · última revisión ${fmtAgo(crawler.last_run_at)}`
     : look.label;
 
   const avatar = $('#avatar');
@@ -422,7 +427,13 @@ async function refreshStatus() {
     el('span', { className: 'sep', textContent: '/' }),
     el('span', { textContent: `${data.websites.active} webs vigiladas` }),
     el('span', { className: 'sep', textContent: '/' }),
-    el('span', { textContent: `última comprobación ${fmtAgo(data.checks.last_checked_at)}` }),
+    el('span', { textContent: `última revisión ${fmtAgo(data.checks.last_checked_at)}` }),
+    el('span', { className: 'sep', textContent: '/' }),
+    el('span', {
+      textContent: crawler.next_run_at
+        ? `la próxima, ${fmtWhen(crawler.next_run_at, data.report.timezone)}`
+        : 'sin próxima revisión programada',
+    }),
   );
 
   /* --- métricas --- */
@@ -457,7 +468,12 @@ async function refreshStatus() {
       ['Ha tardado', crawler.last_run_duration_ms
         ? fmtDuration(Math.round(crawler.last_run_duration_ms / 1000))
         : '—'],
-      ['Revisiones al día', 'Dos'],
+      ['Próxima revisión', crawler.next_run_at
+        ? fmtWhen(crawler.next_run_at, data.report.timezone)
+        : '—'],
+      ...(crawler.overdue_by_ms > 0
+        ? [['Retraso acumulado', fmtDuration(Math.round(crawler.overdue_by_ms / 1000))]]
+        : []),
       ['Analizado esta semana', `${data.usage_7d.analyses} cambio(s)`],
       ['Aviso por correo', data.mail.configured ? stateChip('ok', 'Configurado') : stateChip('warn', 'Sin configurar')],
     ].map(([key, value]) =>
@@ -1703,12 +1719,19 @@ async function init() {
     button.disabled = true;
     try {
       const outcome = await api('/status/run-now', { method: 'POST' });
-      toast(
-        `Comprobadas ${outcome.websites} web(s) · ${outcome.pagesChanged} página(s) con cambios · ` +
-          `${outcome.reported} para el informe` +
-          (outcome.failed ? ` · ${outcome.failed} con error` : ''),
-        outcome.failed ? '' : 'ok',
-      );
+      if (outcome.mode === 'background') {
+        // En producción la revisión corre aparte y tarda minutos: se avisa y
+        // se vuelve a preguntar por el estado en lugar de fingir que ya está.
+        toast(outcome.message, 'ok');
+        setTimeout(() => refreshStatus().catch(() => {}), 20000);
+      } else {
+        toast(
+          `Comprobadas ${outcome.websites} web(s) · ${outcome.pagesChanged} página(s) con cambios · ` +
+            `${outcome.reported} para el informe` +
+            (outcome.failed ? ` · ${outcome.failed} con error` : ''),
+          outcome.failed ? '' : 'ok',
+        );
+      }
     } catch (error) {
       toast(error.message, 'err');
     } finally {
