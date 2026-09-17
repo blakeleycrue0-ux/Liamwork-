@@ -96,6 +96,21 @@ export function dayWindow(date, timeZone) {
 /** Which local calendar day a UTC instant belongs to. */
 export const dateOf = (isoInstant, timeZone) => localParts(timeZone, new Date(isoInstant)).date;
 
+/**
+ * The next instant the report is due, so the dashboard can print a time
+ * instead of "a las 07:00" and leave the reader to work out which morning.
+ *
+ * Today's slot if it has not passed yet, tomorrow's if it has. Resolved
+ * through the same zoned conversion as the day window, so it stays right on
+ * the two nights a year the clocks move.
+ */
+export function nextReportAt({ timeZone, hour, now = new Date() }) {
+  const { date, hour: localHour, minute } = localParts(timeZone, now);
+  const [year, month, day] = date.split('-').map(Number);
+  const passed = localHour > Number(hour) || (localHour === Number(hour) && minute > 0);
+  return zonedToUtc(year, month, day + (passed ? 1 : 0), Number(hour), timeZone).toISOString();
+}
+
 /** True once the configured hour has passed today, where the reader lives. */
 export function reportDue({ timeZone, hour, lastSentDate, now = new Date() }) {
   const { date, hour: localHour } = localParts(timeZone, now);

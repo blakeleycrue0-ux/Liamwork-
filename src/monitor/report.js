@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { getAllSettings, getInt, getSetting } from '../db/repositories/settings.repo.js';
+import { getAllSettings, getBool, getInt, getSetting } from '../db/repositories/settings.repo.js';
 import {
   attachToReport,
   changesForReport,
@@ -11,9 +11,11 @@ import { listWebsites } from '../db/repositories/websites.repo.js';
 import {
   claimForSending,
   getReport,
+  lastAttempt,
   lastSentDate,
   markFailed,
   markSent,
+  recordAttempt,
   releaseClaim,
   saveReport,
 } from '../db/repositories/reports.repo.js';
@@ -21,7 +23,7 @@ import { activeRecipients } from '../notifications/notifier.js';
 import { sendMail } from '../notifications/mailer.js';
 import { aiConfigured, DEFAULT_MODEL } from './analyze.js';
 import { buildReportEmail } from './report.email.js';
-import { dayWindow, previousDate, reportDue } from './window.js';
+import { dayWindow, nextReportAt, previousDate, reportDue } from './window.js';
 
 /**
  * Stage three: one report per morning, covering the previous calendar day.
@@ -224,67 +226,110 @@ async function writeDailySummary(items, { date, model, client }) {
  * `daily_reports.sent_at` is the lock, so a scheduler that fires twice, or a
  * retry after a crash, cannot produce a second copy.
  */
-export async function sendDailyReport({ date, force = false, now = new Date() } = {}) {
+export async function sendDailyReport({
+  date,
+  force = false,
+  origin = force ? 'manual' : 'automatico',
+  now = new Date(),
+} = {}) {
   const settings = await getAllSettings();
   const zone = settings.digest_timezone || 'Europe/Madrid';
   const reportDate = date || previousDate(zone, now);
 
-  // A cheap early exit for the common case. It is NOT the protection - two
-  // callers can both pass it at the same instant. The claim below is.
-  const existing = await getReport(reportDate);
-  if (existing?.sent_at && !force) {
-    return { sent: false, reason: 'already-sent', date: reportDate, sentAt: existing.sent_at };
-  }
-
-  const report = await buildReport({ date: reportDate, timeZone: zone });
-
-  // A quiet day means the report really is empty. It cannot be reached while
-  // anything is still pending, because buildReport now sweeps the backlog into
-  // this very report - so "Sin cambios" can never go out over unsent changes.
-  const quietDay = report.total_changes === 0;
-  if (quietDay && !force && !(await getSetting('report_send_when_empty', 'true')).startsWith('t')) {
-    await markSent(reportDate, []);
-    return { sent: false, reason: 'no-changes', date: reportDate };
-  }
-
-  const recipients = await activeRecipients();
-  if (!recipients.length) {
-    await markFailed(reportDate, 'no hay trabajadores activos');
-    return { sent: false, reason: 'no-active-workers', date: reportDate, changes: report.total_changes };
-  }
-
-  // The lock. Stamping sent_at is how you win the right to send, and only one
-  // caller can win, because the UPDATE itself carries `AND sent_at IS NULL`.
-  // Done BEFORE the mail leaves: claiming afterwards would let both callers
-  // reach sendMail first and put two identical emails in the inbox.
-  const claimed = await claimForSending(reportDate, recipients, { force });
-  if (!claimed) {
-    return { sent: false, reason: 'already-sent', date: reportDate, concurrent: true };
-  }
-
-  const email = buildReportEmail(report, { timeZone: zone });
+  // Every exit below goes through here. A send that fails silently is how a
+  // missing 07:00 email became impossible to explain afterwards: the reason
+  // was written to daily_reports.error and then wiped by the manual re-send
+  // an hour later. These rows are never overwritten.
+  let logged = false;
+  const log = async (outcome, extra = {}) => {
+    logged = true;
+    await recordAttempt({ reportDate, origin, outcome, ...extra });
+  };
 
   try {
-    const info = await sendMail({ to: recipients, ...email });
-    // The changes are spent only once the mail has actually left. Anything the
-    // limit held back is deliberately not claimed, so it waits for tomorrow.
-    await attachToReport(report.changeIds ?? [], report.id);
-    return {
-      sent: true,
-      date: reportDate,
-      changes: report.total_changes,
-      backlog: report.backlog ?? 0,
-      heldBack: report.heldBack ?? 0,
-      high: report.high_priority,
-      medium: report.medium_priority,
-      low: report.low_priority,
-      recipients,
-      messageId: info.messageId,
-    };
+    // A cheap early exit for the common case. It is NOT the protection - two
+    // callers can both pass it at the same instant. The claim below is.
+    const existing = await getReport(reportDate);
+    if (existing?.sent_at && !force) {
+      await log('omitido', { reason: `ya se envió el ${existing.sent_at}` });
+      return { sent: false, reason: 'already-sent', date: reportDate, sentAt: existing.sent_at };
+    }
+
+    const report = await buildReport({ date: reportDate, timeZone: zone });
+
+    // A quiet day means the report really is empty. It cannot be reached while
+    // anything is still pending, because buildReport now sweeps the backlog into
+    // this very report - so "Sin cambios" can never go out over unsent changes.
+    const quietDay = report.total_changes === 0;
+    const sendWhenEmpty = await getBool('report_send_when_empty', true);
+    if (quietDay && !force && !sendWhenEmpty) {
+      await markSent(reportDate, []);
+      await log('omitido', {
+        reason: 'sin cambios y el envío en días vacíos está desactivado',
+      });
+      return { sent: false, reason: 'no-changes', date: reportDate };
+    }
+
+    const recipients = await activeRecipients();
+    if (!recipients.length) {
+      await markFailed(reportDate, 'no hay trabajadores activos');
+      await log('fallido', {
+        reason: 'no hay trabajadores activos a los que enviar',
+        changes: report.total_changes,
+      });
+      return { sent: false, reason: 'no-active-workers', date: reportDate, changes: report.total_changes };
+    }
+
+    // The lock. Stamping sent_at is how you win the right to send, and only one
+    // caller can win, because the UPDATE itself carries `AND sent_at IS NULL`.
+    // Done BEFORE the mail leaves: claiming afterwards would let both callers
+    // reach sendMail first and put two identical emails in the inbox.
+    const claimed = await claimForSending(reportDate, recipients, { force });
+    if (!claimed) {
+      await log('omitido', { reason: 'otro envío simultáneo tenía la reserva' });
+      return { sent: false, reason: 'already-sent', date: reportDate, concurrent: true };
+    }
+
+    const email = buildReportEmail(report, { timeZone: zone });
+
+    try {
+      const info = await sendMail({ to: recipients, ...email });
+      // The changes are spent only once the mail has actually left. Anything the
+      // limit held back is deliberately not claimed, so it waits for tomorrow.
+      await attachToReport(report.changeIds ?? [], report.id);
+      await log('enviado', {
+        changes: report.total_changes,
+        recipients,
+        messageId: info.messageId,
+      });
+      return {
+        sent: true,
+        date: reportDate,
+        changes: report.total_changes,
+        backlog: report.backlog ?? 0,
+        heldBack: report.heldBack ?? 0,
+        high: report.high_priority,
+        medium: report.medium_priority,
+        low: report.low_priority,
+        recipients,
+        messageId: info.messageId,
+      };
+    } catch (error) {
+      // The send failed, so give the claim back: the day is not delivered, the
+      // changes are still pending, and the next run is free to try again.
+      await releaseClaim(reportDate, error.message);
+      await log('fallido', {
+        reason: `el correo no salió: ${error.message}`,
+        changes: report.total_changes,
+        recipients,
+      });
+      throw error;
+    }
   } catch (error) {
-    // The send failed, so give the claim back: the day is not delivered, the
-    // changes are still pending, and the next run is free to try again.
-    await releaseClaim(reportDate, error.message);
+    // Anything that broke before the mail was even attempted - the summary
+    // call, the recipient lookup, the database - used to vanish into the
+    // function log. It is written down now, then rethrown unchanged.
+    if (!logged) await log('fallido', { reason: error.message });
     throw error;
   }
 }
@@ -298,6 +343,11 @@ export async function reportStatus(now = new Date()) {
   const target = previousDate(zone, now);
   const existing = await getReport(target);
   const pending = await countPendingForReport({ date: target, reportId: existing?.id ?? null });
+  // The setting that decides whether a day with nothing to say still produces
+  // an email. Read here so the dashboard states the behaviour that is actually
+  // in force, instead of the one the reader assumes.
+  const sendWhenEmpty = await getBool('report_send_when_empty', true);
+  const attempt = await lastAttempt();
 
   return {
     timezone: zone,
@@ -310,6 +360,17 @@ export async function reportStatus(now = new Date()) {
     // The dashboard used to call this pending_items; kept so an older cached
     // script cannot show a blank number.
     pending_items: pending,
+    next_report_at: nextReportAt({ timeZone: zone, hour, now }),
+    send_when_empty: sendWhenEmpty,
+    last_attempt: attempt && {
+      at: attempt.attempted_at,
+      date: attempt.report_date,
+      origin: attempt.origin,
+      outcome: attempt.outcome,
+      reason: attempt.reason,
+      changes: attempt.changes,
+      recipients: attempt.recipients,
+    },
   };
 }
 

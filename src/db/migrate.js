@@ -8,6 +8,8 @@ import {
   MONITOR_SCHEMA_NAME,
   MONITOR_SCHEMA_POSTGRES,
   MONITOR_SCHEMA_SQLITE,
+  REPORT_ATTEMPTS_NAME,
+  REPORT_ATTEMPTS_POSTGRES,
 } from './schema.monitor.js';
 
 // NOT named __dirname: bundlers for serverless (Netlify) inject their own
@@ -33,6 +35,7 @@ async function runPostgresMigrations({ log }) {
   const steps = [
     { name: POSTGRES_SCHEMA_NAME, sql: POSTGRES_SCHEMA, guard: 'public.websites' },
     { name: MONITOR_SCHEMA_NAME, sql: MONITOR_SCHEMA_POSTGRES, guard: 'public.pages' },
+    { name: REPORT_ATTEMPTS_NAME, sql: REPORT_ATTEMPTS_POSTGRES, guard: 'public.report_attempts' },
   ];
 
   for (const step of steps) {

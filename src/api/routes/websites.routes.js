@@ -11,13 +11,20 @@ import { listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { crawlWebsite } from '../../monitor/crawl.js';
 import { aiConfigured, detectWithAi, previewWebsite } from '../../crawler/fetchers/index.js';
 import { inspectWebsite } from '../../crawler/inspect.js';
+import { explainError } from '../../monitor/errors.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { parseWebsitePayload, ValidationError } from '../validate.js';
 
 export const websiteRoutes = Router();
 
+// `error_detail` is derived, never stored: the raw last_error stays exactly as
+// the crawler wrote it, and the dashboard gets a sentence next to it.
 const withStats = async (website) =>
-  website && { ...website, posts_count: await countPages(website.id) };
+  website && {
+    ...website,
+    posts_count: await countPages(website.id),
+    error_detail: explainError(website.last_error),
+  };
 
 websiteRoutes.get(
   '/',

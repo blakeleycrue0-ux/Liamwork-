@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errors.js';
 import { buildReport, reportStatus, sendDailyReport } from '../../monitor/report.js';
 import { getAllSettings } from '../../db/repositories/settings.repo.js';
+import { listAttempts } from '../../db/repositories/reports.repo.js';
 import { previousDate } from '../../monitor/window.js';
 
 /**
@@ -21,7 +22,23 @@ digestRoutes.get(
 /** Manual send: "quiero verlo ahora", without waiting for the hour. */
 digestRoutes.post(
   '/run',
-  asyncHandler(async (req, res) => res.json(await sendDailyReport({ force: true }))),
+  asyncHandler(async (req, res) =>
+    res.json(await sendDailyReport({ force: true, origin: 'manual' })),
+  ),
+);
+
+/**
+ * What happened on every attempt to send, newest first.
+ *
+ * The one place that can answer "¿por qué no llegó el informe de esta mañana?"
+ * after the fact, because a forced re-send clears daily_reports.error but
+ * cannot touch these rows.
+ */
+digestRoutes.get(
+  '/attempts',
+  asyncHandler(async (req, res) =>
+    res.json({ attempts: await listAttempts(Math.min(Number(req.query.limit) || 20, 100)) }),
+  ),
 );
 
 /** The same report rendered for the dashboard, with no email sent. */

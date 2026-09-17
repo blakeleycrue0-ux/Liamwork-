@@ -150,3 +150,60 @@ export async function lastSentDate() {
   );
   return row?.report_date ?? null;
 }
+
+/* ---------------------------------------------------------------------------
+ * Send attempts
+ *
+ * Append-only on purpose. `daily_reports.error` answers "is this date still
+ * undelivered and why", and a forced re-send clears it - which is how the
+ * failed 07:00 send of 2026-09-17 stopped existing the moment the button was
+ * pressed at 09:08. These rows are never updated and never deleted, so the
+ * dashboard can always say what happened, and when, and who asked for it.
+ * ------------------------------------------------------------------------- */
+
+/** Records one attempt. Never throws: logging a send must not break a send. */
+export async function recordAttempt({
+  reportDate,
+  origin = 'automatico',
+  outcome,
+  reason = null,
+  changes = 0,
+  recipients = null,
+  messageId = null,
+  at = nowIso(),
+}) {
+  try {
+    const db = await getDb();
+    await db.run(
+      `INSERT INTO report_attempts
+         (report_date, attempted_at, origin, outcome, reason, changes, recipients, message_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        reportDate,
+        at,
+        origin,
+        outcome,
+        reason === null ? null : String(reason).slice(0, 500),
+        changes ?? 0,
+        recipients ? JSON.stringify(recipients) : null,
+        messageId ?? null,
+      ],
+    );
+  } catch (error) {
+    console.error(`[informe] no se pudo registrar el intento: ${error.message}`);
+  }
+}
+
+export async function listAttempts(limit = 20) {
+  const db = await getDb();
+  const rows = await db.all(
+    'SELECT * FROM report_attempts ORDER BY attempted_at DESC, id DESC LIMIT ?',
+    [limit],
+  );
+  return rows.map((row) => ({ ...row, recipients: safeJson(row.recipients, []) }));
+}
+
+export async function lastAttempt() {
+  const [row] = await listAttempts(1);
+  return row ?? null;
+}

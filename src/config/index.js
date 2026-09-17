@@ -89,7 +89,14 @@ export const config = {
     schedulerTick: int(process.env.SCHEDULER_TICK, 15),
     concurrency: int(process.env.CRAWLER_CONCURRENCY, 8),
     timeoutMs: int(process.env.CRAWLER_TIMEOUT_MS, 15000),
-    userAgent: process.env.CRAWLER_USER_AGENT || 'WebMonitorBot/1.0',
+    // A bot-shaped User-Agent is enough for a WAF to answer 403 before it
+    // even looks at the request - measured, on one of the watched clubs. The
+    // crawler reads public pages at most twice a day, so it identifies itself
+    // the way any reader's browser would. Override with CRAWLER_USER_AGENT.
+    userAgent:
+      process.env.CRAWLER_USER_AGENT ||
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+        'Chrome/140.0.0.0 Safari/537.36',
     runInWeb: bool(process.env.RUN_SCHEDULER_IN_WEB, true),
   },
 
