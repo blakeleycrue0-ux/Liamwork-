@@ -4,7 +4,7 @@ Dashboard de monitorización de webs: comprueba periódicamente una lista de web
 detecta **nuevas publicaciones** (noticias, posts, convocatorias…) y avisa por
 **email** a los trabajadores activos.
 
-Diseñado desde el principio para escalar de 1 a ~28 webs o más: todas las webs,
+Diseñado desde el principio para escalar de 1 a ~30 webs o más: todas las webs,
 trabajadores e intervalos se gestionan **desde el dashboard y la base de datos**,
 nunca desde el código.
 
@@ -13,7 +13,7 @@ nunca desde el código.
 ## 1. Arquitectura
 
 ```
-  28 WEBS
+  27 WEBS
      |
      v
   CRAWLER  ---------  lee el listado y las paginas recientes de cada web,
@@ -40,7 +40,7 @@ Cada pieza vive en su propio modulo y puede sustituirse sin tocar las demas:
 
 | Carpeta | Responsabilidad |
 |---|---|
-| `src/config` | Variables de entorno y la lista de las 28 webs (`sites.js`) |
+| `src/config` | Variables de entorno y la lista de las 27 webs (`sites.js`) |
 | `src/db` | Conexion (SQLite o Supabase), migraciones y **repositorios** |
 | `src/crawler` | HTTP, decodificacion de texto y `fetchers/` (rss, html, browser) |
 | `src/monitor` | **El sistema nuevo**: crawl, diff, analisis con Claude, informe |

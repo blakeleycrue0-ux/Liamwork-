@@ -80,7 +80,12 @@ export function explainError(message) {
   }
 
   // Already a sentence: NetworkError writes "El dominio no existe (ENOTFOUND)
-  // para https://…". Keep it, minus the URL the dashboard already shows.
-  const withoutUrl = text.replace(/\s+para\s+https?:\/\/\S+$/i, '').replace(/\s+for\s+https?:\/\/\S+$/i, '');
-  return { code: 'Error', reason: withoutUrl, text: withoutUrl, kind };
+  // para https://…". Keep it, minus the URL the dashboard already shows, and
+  // put a short label in front so the column reads like the HTTP ones.
+  const withoutUrl = text
+    .replace(/\s+para\s+https?:\/\/\S+$/i, '')
+    .replace(/\s+for\s+https?:\/\/\S+$/i, '');
+  const codes = { dns: 'DNS', tls: 'TLS', timeout: 'Tiempo agotado', network: 'Sin conexión' };
+  const code = codes[kind] ?? 'Error';
+  return { code, reason: withoutUrl, text: `${code} — ${withoutUrl}`, kind };
 }

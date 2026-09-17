@@ -14,6 +14,9 @@ export const publicConfig = {
   brand: {
     name: 'Web Monitor',
     credit: 'Hecho por Crue Bryn Blakley',
+    // A quién saluda el panel al abrirlo. Se usa sólo cuando la sesión no da
+    // un nombre de pila utilizable - con AUTH_PROVIDER=none no hay ninguno.
+    owner: 'Crue',
   },
 
   // 'none'     -> el dashboard es accesible sin iniciar sesion

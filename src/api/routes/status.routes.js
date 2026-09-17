@@ -59,7 +59,7 @@ statusRoutes.get(
       recent_changes: reportable,
       recent_errors: recentErrors,
       mail: { transport: config.mail.transport, from: config.mail.from },
-      brand: { name: config.brand.name, credit: config.brand.credit },
+      brand: { name: config.brand.name, credit: config.brand.credit, owner: config.brand.owner },
       server_time: new Date().toISOString(),
     });
   }),

@@ -8,7 +8,7 @@ import { dateOf, dayWindow, previousDate, reportDue } from './window.js';
 /**
  * The whole pipeline, in the order the architecture describes it:
  *
- *   28 webs -> crawl -> store -> Claude analyses -> changes -> one email
+ *   27 webs -> crawl -> store -> Claude analyses -> changes -> one email
  *
  * Run twice a day. The crawl is cheap and does the filtering; Claude only
  * ever sees the pages whose text actually moved; the report goes out once,

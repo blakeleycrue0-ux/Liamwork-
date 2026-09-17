@@ -71,6 +71,7 @@ export const config = {
   brand: {
     name: process.env.APP_NAME || publicConfig.brand?.name || 'Web Monitor',
     credit: process.env.APP_CREDIT || publicConfig.brand?.credit || 'Web Monitor',
+    owner: process.env.APP_OWNER || publicConfig.brand?.owner || '',
   },
 
   supabase: {

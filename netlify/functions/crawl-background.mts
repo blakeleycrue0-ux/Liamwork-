@@ -2,11 +2,11 @@
 process.env.DB_DRIVER ||= 'postgres';
 
 /**
- * The full pass: crawl the 28 websites, let Claude judge whatever moved, and
+ * The full pass: crawl the 27 websites, let Claude judge whatever moved, and
  * send the morning report if its hour has arrived.
  *
  * Background functions get 15 minutes instead of the 30 seconds a scheduled
- * function gets, which is what makes fetching a dozen pages from each of 28
+ * function gets, which is what makes fetching a dozen pages from each of 27
  * sites - some of them slow - finish comfortably in one go.
  *
  * Invoked by crawl-scheduled, which returns immediately.
