@@ -123,6 +123,33 @@
         </div>
       </div>
 
+      <!-- Los resultados de UNA comprobación concreta, no una mezcla de
+           cambios sueltos de la base de datos. Todo lo que hay aquí sale de
+           /api/status/runs/:id, atado por run_id. -->
+      <section class="section run" id="run-section" aria-labelledby="run-heading" hidden>
+        <div class="section-head">
+          <h2 id="run-heading">Última comprobación</h2>
+          <span class="run-state" id="run-state"></span>
+          <span class="spacer"></span>
+          <span class="count" id="run-when"></span>
+        </div>
+
+        <div class="run-metrics" id="run-metrics"></div>
+
+        <div class="run-errors" id="run-errors" hidden></div>
+
+        <div class="run-list" id="run-relevant"></div>
+
+        <p class="run-none" id="run-none" hidden>
+          Esta comprobación no encontró ningún cambio relevante.
+        </p>
+
+        <details class="run-ignored" id="run-ignored" hidden>
+          <summary id="run-ignored-label"></summary>
+          <div class="run-ignored-body" id="run-ignored-body"></div>
+        </details>
+      </section>
+
       <section class="section report" aria-labelledby="report-heading">
         <div class="section-head">
           <h2 id="report-heading">Informe diario</h2>

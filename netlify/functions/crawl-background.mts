@@ -11,8 +11,17 @@ process.env.DB_DRIVER ||= 'postgres';
  *
  * Invoked by crawl-scheduled, which returns immediately.
  */
-export default async () => {
+export default async (request: Request) => {
   const startedAt = Date.now();
+
+  // Quién pidió la pasada. El botón del panel manda {"origin":"manual"}; el
+  // cron no manda nada. Sólo sirve para que el panel pueda decir "la pediste
+  // tú" o "la lanzó el horario"; no cambia una sola línea de lo que se hace.
+  const origin = await request
+    .clone()
+    .json()
+    .then((body: { origin?: string }) => (body?.origin === 'manual' ? 'manual' : 'automatico'))
+    .catch(() => 'automatico');
 
   try {
     const [bootstrap, monitor, settings, state] = await Promise.all([
@@ -30,7 +39,7 @@ export default async () => {
       return;
     }
 
-    const { pipeline, report } = await monitor.runScheduledPass({ now: new Date() });
+    const { pipeline, report } = await monitor.runScheduledPass({ now: new Date(), origin });
 
     console.log(
       `[crawl] ${pipeline.crawl.websites} web(s), ${pipeline.crawl.pagesChanged} página(s) con cambios, ` +
@@ -46,6 +55,13 @@ export default async () => {
       );
     }
     for (const error of pipeline.analysis.errors) console.error(`[claude] ${error}`);
+
+    if (pipeline.slack?.configured) {
+      console.log(
+        `[slack] ${pipeline.slack.sent} aviso(s) enviado(s)` +
+          (pipeline.slack.failed ? `, ${pipeline.slack.failed} sin enviar` : ''),
+      );
+    }
 
     if (report?.sent) {
       console.log(`[informe] enviado el del ${report.date}: ${report.changes} cambio(s)`);

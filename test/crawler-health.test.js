@@ -161,10 +161,10 @@ test('en el despliegue, "Comprobar ahora" se entrega a la función de fondo', as
   const fuente = await import('node:fs').then((fs) =>
     fs.readFileSync(new URL('../src/api/routes/status.routes.js', import.meta.url), 'utf8'),
   );
-  const bloque = fuente.slice(fuente.indexOf("'/run-now'"), fuente.indexOf("'/websites-health'"));
+  const bloque = fuente.slice(fuente.indexOf("'/run-now'"), fuente.indexOf("'/runs'"));
 
   assert.match(bloque, /process\.env\.URL \|\| process\.env\.DEPLOY_PRIME_URL/, 'mira si está desplegado');
   assert.match(bloque, /crawl-background/, 'y le entrega el trabajo a quien tiene quince minutos');
   assert.match(bloque, /mode: 'background'/, 'diciéndolo, para que el panel no finja que ya terminó');
-  assert.match(bloque, /runPipeline\(\)/, 'en local sigue ejecutándose en línea');
+  assert.match(bloque, /await runPipeline\(/, 'en local sigue ejecutándose en línea');
 });

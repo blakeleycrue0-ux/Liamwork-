@@ -110,6 +110,24 @@ export const config = {
       .filter((hour) => Number.isInteger(hour) && hour >= 0 && hour <= 23),
   },
 
+  /**
+   * Slack, opcional y sólo del lado del servidor.
+   *
+   * El webhook es un secreto: quien lo tenga puede publicar en el canal del
+   * club. Vive SÓLO aquí, no se manda nunca al navegador y no se escribe en
+   * ningún registro; el panel se entera de si existe por un booleano, jamás
+   * por el valor. Si no está, todo lo demás sigue funcionando igual.
+   *
+   * Se configura en Netlify como SLACK_WEBHOOK_URL, que es el mismo patrón
+   * que SMTP_PASSWORD o SUPABASE_SERVICE_ROLE_KEY: variable de entorno, nunca
+   * public.config.json, que sí se publica.
+   */
+  slack: {
+    webhookUrl: process.env.SLACK_WEBHOOK_URL || '',
+    // Sólo para el botón "Ver el cambio" del mensaje. No es un secreto.
+    appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+  },
+
   mail: {
     transport: (process.env.MAIL_TRANSPORT || 'console').toLowerCase(),
     from: process.env.MAIL_FROM || 'Web Monitor <monitor@example.com>',

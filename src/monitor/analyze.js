@@ -380,9 +380,9 @@ export function applyRelevance(verdict) {
 /**
  * Full stage two: build the inputs, ask the model, store every verdict.
  *
- * @returns {Promise<{analyzed, reported, filtered, skipped, batches, usage, errors}>}
+ * @returns {Promise<{analyzed, reported, filtered, drafts, skipped, batches, usage, errors}>}
  */
-export async function analyzeCandidates(rawCandidates, { window, changeDate, model, client } = {}) {
+export async function analyzeCandidates(rawCandidates, { window, changeDate, model, client, runId = null } = {}) {
   const chosenModel = model ?? (await getSetting('analysis_model', DEFAULT_MODEL));
 
   const built = [];
@@ -394,17 +394,18 @@ export async function analyzeCandidates(rawCandidates, { window, changeDate, mod
   }
 
   if (!built.length) {
-    return { analyzed: 0, reported: 0, filtered: 0, skipped, batches: 0, usage: emptyUsage(), errors: [] };
+    return { analyzed: 0, reported: 0, filtered: 0, drafts: 0, skipped, batches: 0, usage: emptyUsage(), errors: [] };
   }
 
   if (!aiConfigured()) {
     // No key: every candidate is stored unclassified rather than silently
     // dropped, so nothing is lost and the gap is visible in the audit.
-    for (const candidate of built) await storeUnanalyzed(candidate, changeDate);
+    for (const candidate of built) await storeUnanalyzed(candidate, changeDate, undefined, runId);
     return {
       analyzed: 0,
       reported: 0,
       filtered: 0,
+      drafts: 0,
       skipped,
       batches: 0,
       usage: emptyUsage(),
@@ -419,13 +420,14 @@ export async function analyzeCandidates(rawCandidates, { window, changeDate, mod
   let analyzed = 0;
   let reported = 0;
   let filtered = 0;
+  let drafts = 0;
 
   for (const batch of batches) {
     const result = await analyzeBatch(batch, { window, model: chosenModel, client: anthropic });
 
     if (!result.ok) {
       errors.push(result.error);
-      for (const candidate of batch) await storeUnanalyzed(candidate, changeDate, result.error);
+      for (const candidate of batch) await storeUnanalyzed(candidate, changeDate, result.error, runId);
       continue;
     }
 
@@ -437,7 +439,7 @@ export async function analyzeCandidates(rawCandidates, { window, changeDate, mod
     for (const candidate of batch) {
       const verdict = byId.get(candidate.id);
       if (!verdict) {
-        await storeUnanalyzed(candidate, changeDate, 'el modelo no devolvió veredicto para esta página');
+        await storeUnanalyzed(candidate, changeDate, 'el modelo no devolvió veredicto para esta página', runId);
         continue;
       }
       analyzed += 1;
@@ -445,6 +447,7 @@ export async function analyzeCandidates(rawCandidates, { window, changeDate, mod
       const decided = applyRelevance(verdict);
       const reportable = decided.change_type === 'NEW' || decided.change_type === 'UPDATED';
       if (reportable) reported += 1;
+      if (reportable && decided.draft_message) drafts += 1;
       // Cambió de verdad, pero de algo que a nadie le importa. Se cuenta
       // aparte de `skipped`, que son los que ni siquiera llegaron al modelo.
       else if (verdict.change_type === 'NEW' || verdict.change_type === 'UPDATED') filtered += 1;
@@ -452,6 +455,7 @@ export async function analyzeCandidates(rawCandidates, { window, changeDate, mod
       await recordChange({
         pageId: candidate.pageId,
         websiteId: candidate.websiteId,
+        runId,
         fromVersionId: candidate.previousVersionId,
         toVersionId: candidate.versionId,
         changeDate,
@@ -477,7 +481,7 @@ export async function analyzeCandidates(rawCandidates, { window, changeDate, mod
     }
   }
 
-  return { analyzed, reported, filtered, skipped, batches: batches.length, usage, errors };
+  return { analyzed, reported, filtered, drafts, skipped, batches: batches.length, usage, errors };
 }
 
 const emptyUsage = () => ({ input: 0, output: 0, cached: 0 });
@@ -486,10 +490,11 @@ const emptyUsage = () => ({ input: 0, output: 0, cached: 0 });
  * A candidate the model never judged. Recorded as UNCHANGED so it is never
  * mailed out, but kept in full so the gap is auditable and re-runnable.
  */
-async function storeUnanalyzed(candidate, changeDate, error = 'no analizado') {
+async function storeUnanalyzed(candidate, changeDate, error = 'no analizado', runId = null) {
   await recordChange({
     pageId: candidate.pageId,
     websiteId: candidate.websiteId,
+    runId,
     fromVersionId: candidate.previousVersionId,
     toVersionId: candidate.versionId,
     changeDate,

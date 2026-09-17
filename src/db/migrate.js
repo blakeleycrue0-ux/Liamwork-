@@ -10,6 +10,8 @@ import {
   MONITOR_SCHEMA_SQLITE,
   RELEVANCE_NAME,
   RELEVANCE_POSTGRES,
+  RUNS_NAME,
+  RUNS_POSTGRES,
   REPORT_ATTEMPTS_NAME,
   REPORT_ATTEMPTS_POSTGRES,
 } from './schema.monitor.js';
@@ -42,6 +44,7 @@ async function runPostgresMigrations({ log }) {
     // comprobar la tabla. No importa: los ALTER llevan IF NOT EXISTS y el paso
     // queda anotado, de modo que correrlo dos veces no cuesta nada ni rompe.
     { name: RELEVANCE_NAME, sql: RELEVANCE_POSTGRES, guard: 'public.detected_changes' },
+    { name: RUNS_NAME, sql: RUNS_POSTGRES, guard: 'public.crawl_runs' },
   ];
 
   for (const step of steps) {

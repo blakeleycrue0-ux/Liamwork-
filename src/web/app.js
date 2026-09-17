@@ -12,6 +12,10 @@ const state = {
   digest: null,
   attempts: [],
   activity: [],
+  // Los detalles de la última comprobación, cacheados por id: mientras el
+  // panel siga mirando la misma ejecución no hace falta volver a pedirlos.
+  runDetailFor: null,
+  runDetail: null,
   page: 'summary',
 };
 
@@ -395,6 +399,187 @@ function headline(data) {
   return 'Todo bajo control.';
 }
 
+/* ======================================================================
+   RESULTADOS DE UNA COMPROBACIÓN
+
+   Lo que se enseña aquí sale de /api/status/runs/:id, atado por run_id, y
+   no de "los cambios más recientes de la base de datos". La diferencia
+   importa: dos pasadas seguidas producen dos listas distintas, y la de ayer
+   sigue siendo consultable mañana.
+
+   El estado no se estima. Mientras la fila de la ejecución está en `running`
+   hay una pasada corriendo de verdad; cuando pasa a `done` es porque
+   terminó. No se inventa ningún porcentaje ni ninguna barra de progreso,
+   porque el crawler no publica progreso parcial y fingirlo sería mentir.
+   ====================================================================== */
+
+let runPoll = null;
+
+async function renderRun(run) {
+  const section = $('#run-section');
+  if (!run) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+
+  const running = run.status === 'running';
+  $('#run-state').replaceChildren(
+    running
+      ? stateChip('warn', 'Comprobación en curso…')
+      : run.status === 'failed'
+        ? stateChip('bad', 'Comprobación interrumpida')
+        : stateChip('ok', 'Comprobación completada'),
+  );
+  $('#run-when').textContent =
+    `${fmtTime(run.started_at)}${run.origin === 'manual' ? ' · a petición' : ''}` +
+    (run.duration_ms ? ` · ${fmtDuration(Math.round(run.duration_ms / 1000))}` : '');
+
+  // Los siete recuentos que se pidieron, en el orden en que se leen.
+  $('#run-metrics').replaceChildren(
+    ...[
+      ['Webs revisadas', run.websites],
+      ['Páginas revisadas', run.pages_seen],
+      ['Páginas con cambio', run.pages_changed],
+      ['Cambios relevantes', run.relevant],
+      ['Cambios ignorados', run.ignored],
+      ['Borradores', run.drafts],
+      ['Webs con error', run.websites_failed],
+    ].map(([label, value]) =>
+      el('div', { className: 'run-metric' }, [
+        el('div', { className: 'value num', textContent: running ? '—' : String(value ?? 0) }),
+        el('div', { className: 'label', textContent: label }),
+      ]),
+    ),
+  );
+
+  // Los errores, ya traducidos por el servidor: aquí no llega un código HTTP.
+  // Se enseñan los primeros y se cuenta el resto: el día que fallen las
+  // veintisiete -pasa, si se cae la red- una lista de veintisiete filas
+  // empuja fuera de la pantalla todo lo demás.
+  const errors = run.errors ?? [];
+  const shown = errors.slice(0, 8);
+  $('#run-errors').hidden = !errors.length;
+  $('#run-errors').replaceChildren(
+    ...shown.map((error) =>
+      el('div', { className: 'run-error' }, [
+        el('span', { className: 'who', textContent: error.website }),
+        el('span', { className: 'what', textContent: error.label ?? 'No se ha podido conectar' }),
+      ]),
+    ),
+    ...(errors.length > shown.length
+      ? [el('div', { className: 'run-error dim', textContent: `y ${errors.length - shown.length} web(s) más` })]
+      : []),
+  );
+
+  // Mientras corre no hay nada que listar todavía.
+  if (running) {
+    $('#run-relevant').replaceChildren();
+    $('#run-none').hidden = true;
+    $('#run-ignored').hidden = true;
+    schedulePoll();
+    return;
+  }
+
+  // Terminada: se piden los detalles una sola vez por ejecución.
+  if (state.runDetailFor !== run.id) {
+    let detail;
+    try {
+      detail = await api(`/status/runs/${run.id}`);
+    } catch {
+      return;
+    }
+    state.runDetailFor = run.id;
+    state.runDetail = detail;
+  }
+  paintRunDetail(state.runDetail);
+}
+
+function paintRunDetail(detail) {
+  if (!detail) return;
+  const relevant = detail.relevant ?? [];
+
+  $('#run-none').hidden = relevant.length > 0;
+  $('#run-relevant').replaceChildren(...relevant.map(relevantCard));
+
+  // Los ignorados no se pintan: se cuentan. Ciento cuarenta y tres filas de
+  // ruido encima del que abre el panel no le dicen nada, y esconden las tres
+  // que sí importan.
+  const ignored = detail.ignored_count ?? 0;
+  $('#run-ignored').hidden = ignored === 0;
+  $('#run-ignored-label').textContent =
+    `${ignored} cambio${ignored === 1 ? '' : 's'} ignorado${ignored === 1 ? '' : 's'}`;
+  $('#run-ignored-body').replaceChildren(
+    ...(detail.ignored ?? []).map((change) =>
+      el('div', { className: 'run-skip' }, [
+        el('span', { className: 'who', textContent: change.website_name }),
+        el('span', { className: 'what', textContent: change.title || '—' }),
+        el('span', { className: 'why', textContent: change.reasoning || '' }),
+      ]),
+    ),
+  );
+}
+
+/** Un cambio relevante, plegado; se abre para ver el detalle y el borrador. */
+function relevantCard(change) {
+  const kind = CATEGORIES[change.category] ?? 'Cambio';
+  const type = CHANGE_TYPES[change.change_type] ?? { label: change.change_type };
+  const priority = PRIORITY[change.priority] ?? PRIORITY.LOW;
+
+  const head = el('summary', { className: 'run-card-head' }, [
+    el('span', { className: 'club', textContent: change.website_name }),
+    el('span', { className: 'cat', textContent: kind }),
+    el('span', { className: `tag ${change.change_type === 'NEW' ? 'accent' : ''}`, textContent: type.label }),
+    el('span', { className: `tag prio-${priority.css}`, textContent: priority.label }),
+    el('span', { className: 'title', textContent: change.title || 'Cambio detectado' }),
+    el('span', { className: 'when', textContent: fmtTime(change.detected_at) }),
+  ]);
+
+  const body = el('div', { className: 'run-card-body' }, [
+    change.summary ? el('p', { textContent: change.summary }) : '',
+    change.what_changed
+      ? el('p', { className: 'muted' }, [
+          el('strong', { textContent: 'Qué cambió: ' }),
+          change.what_changed,
+        ])
+      : '',
+    change.previous_value && change.new_value
+      ? el('div', { className: 'preview-box mono' }, [
+          el('div', { textContent: `Antes: ${change.previous_value}` }),
+          el('div', { textContent: `Ahora: ${change.new_value}` }),
+        ])
+      : '',
+    change.draft_message
+      ? el('div', {}, [
+          el('h3', { textContent: 'Mensaje borrador' }),
+          el('p', { className: 'draft', textContent: change.draft_message }),
+        ])
+      : '',
+    el('div', { className: 'run-card-links' }, [
+      change.url
+        ? el('a', { className: 'btn-ghost btn-sm', href: change.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Ver la página original' })
+        : '',
+      change.slack_notified_at
+        ? el('span', { className: 'dim', textContent: `Avisado por Slack a las ${fmtTime(change.slack_notified_at)}` })
+        : '',
+    ]),
+  ]);
+
+  return el('details', { className: 'run-card' }, [head, body]);
+}
+
+/**
+ * Vuelve a preguntar mientras haya una pasada corriendo.
+ *
+ * Cinco segundos, y sólo mientras el estado sea `running`: en cuanto la
+ * ejecución se cierra, el sondeo para solo. No hace falta recargar la página
+ * ni pulsar nada.
+ */
+function schedulePoll() {
+  clearTimeout(runPoll);
+  runPoll = setTimeout(() => refreshStatus().catch(() => {}), 5000);
+}
+
 async function refreshStatus() {
   let data;
   try {
@@ -476,6 +661,11 @@ async function refreshStatus() {
         : []),
       ['Analizado esta semana', `${data.usage_7d.analyses} cambio(s)`],
       ['Aviso por correo', data.mail.configured ? stateChip('ok', 'Configurado') : stateChip('warn', 'Sin configurar')],
+      // Sólo si hay canal. El webhook no llega nunca al navegador: la API
+      // manda un booleano y esto es todo lo que el panel sabe de Slack.
+      ['Aviso por Slack', data.slack?.configured
+        ? stateChip('ok', 'Conectado')
+        : stateChip('off', 'Sin configurar')],
     ].map(([key, value]) =>
       el('div', {}, [
         el('dt', { textContent: key }),
@@ -483,6 +673,9 @@ async function refreshStatus() {
       ]),
     ),
   );
+
+  /* --- los resultados de la última comprobación --- */
+  renderRun(data.last_run).catch(() => {});
 
   /* --- actividad reciente --- */
   $('#recent-posts').replaceChildren(
@@ -1746,8 +1939,11 @@ async function init() {
       if (outcome.mode === 'background') {
         // En producción la revisión corre aparte y tarda minutos: se avisa y
         // se vuelve a preguntar por el estado en lugar de fingir que ya está.
+        // A partir de aquí el sondeo se mantiene solo mientras la fila de la
+        // ejecución siga en `running`, así que los resultados aparecen sin
+        // que nadie tenga que recargar.
         toast(outcome.message, 'ok');
-        setTimeout(() => refreshStatus().catch(() => {}), 20000);
+        setTimeout(() => refreshStatus().catch(() => {}), 3000);
       } else {
         toast(
           `Comprobadas ${outcome.websites} web(s) · ${outcome.pagesChanged} página(s) con cambios · ` +

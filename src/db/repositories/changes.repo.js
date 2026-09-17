@@ -18,16 +18,19 @@ export async function recordChange(change, { at = nowIso() } = {}) {
   const db = await getDb();
   return db.get(
     `INSERT INTO detected_changes (
-       page_id, website_id, from_version_id, to_version_id, detected_at, change_date,
+       page_id, website_id, run_id, from_version_id, to_version_id, detected_at, change_date,
        change_type, priority, category, draft_message, title, url, summary, what_changed,
        previous_value, new_value, reasoning, analyzer, model, input_tokens, output_tokens,
        cached_tokens, analysis_input, analysis_output
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (to_version_id, page_id) DO NOTHING
      RETURNING *`,
     [
       change.pageId ?? null,
       change.websiteId,
+      // De qué pasada salió. Es lo que ata un resultado a su comprobación en
+      // lugar de dejarlo flotando entre los cambios de toda la base de datos.
+      change.runId ?? null,
       change.fromVersionId ?? null,
       change.toVersionId ?? null,
       at,
@@ -211,4 +214,79 @@ export async function countByDate(date) {
     [date],
   );
   return rows.map((row) => ({ ...row, n: num(row.n) }));
+}
+
+/* ------------------------------------------------------- por ejecución */
+
+/**
+ * Lo que encontró UNA pasada concreta.
+ *
+ * No es "los cambios de las últimas dos horas" ni "los ocho más recientes":
+ * es exactamente lo que produjo esa ejecución, atado por run_id. Un cambio no
+ * puede aparecer en dos revisiones ni desaparecer porque otra pasada haya
+ * escrito encima.
+ */
+export async function changesForRun(runId, { types = null } = {}) {
+  const db = await getDb();
+  const filter = types?.length ? `AND c.change_type IN (${types.map(() => '?').join(', ')})` : '';
+  return db.all(
+    `SELECT c.id, c.website_id, c.detected_at, c.change_date, c.change_type, c.priority,
+            c.category, c.draft_message, c.title, c.url, c.summary, c.what_changed,
+            c.previous_value, c.new_value, c.reasoning, c.slack_notified_at,
+            w.name AS website_name, w.url AS website_url
+     FROM detected_changes c JOIN websites w ON w.id = c.website_id
+     WHERE c.run_id = ? ${filter}
+     ORDER BY CASE c.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
+              w.name, c.id`,
+    [runId, ...(types ?? [])],
+  );
+}
+
+/**
+ * Los cambios relevantes de una pasada que NADIE ha mandado todavía a Slack.
+ *
+ * Aquí no se decide nada sobre relevancia: se pregunta por REPORTABLE, que es
+ * lo que el filtro de relevancia ya dejó pasar. Un IGNORED no puede salir de
+ * esta consulta ni aunque alguien lo pida.
+ */
+export async function pendingForSlack(runId) {
+  const db = await getDb();
+  const placeholders = REPORTABLE.map(() => '?').join(', ');
+  return db.all(
+    `SELECT c.id, c.change_type, c.priority, c.category, c.draft_message, c.title, c.url,
+            c.summary, c.what_changed, c.detected_at,
+            w.name AS website_name, w.url AS website_url
+     FROM detected_changes c JOIN websites w ON w.id = c.website_id
+     WHERE c.run_id = ? AND c.change_type IN (${placeholders}) AND c.slack_notified_at IS NULL
+     ORDER BY CASE c.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END, c.id`,
+    [runId, ...REPORTABLE],
+  );
+}
+
+/**
+ * Se queda con el derecho a avisar de este cambio, y sólo si nadie lo tenía.
+ *
+ * El `AND slack_notified_at IS NULL` va DENTRO del UPDATE a propósito: leer
+ * primero y escribir después deja una ventana en la que dos ejecuciones
+ * simultáneas -un reintento de Netlify sobre una función que ya estaba
+ * corriendo- pasan las dos la comprobación y mandan las dos el mensaje. Así
+ * sólo una puede ganar, y la que pierde no manda nada.
+ *
+ * Se reclama ANTES de publicar, no después. Si el envío falla, se devuelve la
+ * reserva; al revés, un fallo entre el envío y la marca produciría el
+ * duplicado que esto existe para evitar.
+ */
+export async function claimForSlack(id, { at = nowIso() } = {}) {
+  const db = await getDb();
+  const { changes } = await db.run(
+    'UPDATE detected_changes SET slack_notified_at = ? WHERE id = ? AND slack_notified_at IS NULL',
+    [at, id],
+  );
+  return changes === 1;
+}
+
+/** Devuelve la reserva cuando el envío no llegó a salir. */
+export async function releaseSlackClaim(id) {
+  const db = await getDb();
+  await db.run('UPDATE detected_changes SET slack_notified_at = NULL WHERE id = ?', [id]);
 }

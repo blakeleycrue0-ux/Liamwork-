@@ -1162,3 +1162,119 @@ select {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   tbody td:not(.primary):not(.actions):not(.empty)::before { flex-basis: 76px; }
 }
+
+/* ======================================================================
+   RESULTADOS DE UNA COMPROBACIÓN
+   ----------------------------------------------------------------------
+   Los recuentos arriba, grandes y en cifras tabulares; debajo, una lista de
+   fichas plegadas. Lo relevante se ve entero de un vistazo y el ruido -los
+   ignorados- vive detrás de un contador que hay que pulsar a propósito.
+   ==================================================================== */
+
+.run-state { display: inline-flex; margin-left: 14px; }
+
+.run-metrics {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 24px 18px;
+  padding: 22px 0 26px;
+}
+.run-metric .value { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
+.run-metric .label {
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.run-errors {
+  margin-bottom: 20px;
+  border-left: 2px solid var(--bad);
+  padding-left: 14px;
+}
+.run-error { display: flex; gap: 12px; font-size: 13px; padding: 2px 0; }
+.run-error .who { min-width: 150px; color: var(--fg); }
+.run-error .what { color: var(--bad); }
+
+.run-none { padding: 4px 0 8px; color: var(--fg-2); }
+
+/* Una ficha por cambio relevante. Plegada muestra la línea; abierta, todo. */
+.run-card { border-top: 1px solid var(--line-soft); }
+.run-card:last-of-type { border-bottom: 1px solid var(--line-soft); }
+.run-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 2px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+}
+.run-card-head::-webkit-details-marker { display: none; }
+.run-card-head::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-right: 1.4px solid var(--fg-3);
+  border-bottom: 1.4px solid var(--fg-3);
+  transform: rotate(-45deg);
+  transition: transform var(--fast);
+}
+.run-card[open] > .run-card-head::before { transform: rotate(45deg); }
+.run-card-head:hover { background: rgba(255, 255, 255, 0.02); }
+.run-card-head .club { min-width: 120px; font-weight: 600; }
+.run-card-head .cat { min-width: 132px; color: var(--accent-fg); font-size: 12px; }
+.run-card-head .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+.run-card-head .when { color: var(--fg-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tag.prio-high { color: var(--bad); }
+.tag.prio-medium { color: var(--warn); }
+.tag.prio-low { color: var(--fg-3); }
+
+.run-card-body { padding: 4px 0 24px 17px; display: grid; gap: 12px; }
+.run-card-body h3 { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.run-card-links { display: flex; align-items: center; gap: 16px; padding-top: 4px; }
+
+/* Los ignorados: un contador, y detrás la lista para quien quiera mirarla. */
+.run-ignored { margin-top: 22px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
+.run-ignored > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--fg-3);
+  list-style: none;
+}
+.run-ignored > summary::-webkit-details-marker { display: none; }
+.run-ignored > summary::before { content: '▸ '; }
+.run-ignored[open] > summary::before { content: '▾ '; }
+.run-ignored > summary:hover { color: var(--fg-2); }
+.run-ignored-body { padding-top: 12px; display: grid; gap: 6px; }
+.run-skip { display: flex; gap: 12px; font-size: 12px; color: var(--fg-3); }
+.run-skip .who { min-width: 130px; color: var(--fg-2); }
+.run-skip .what { min-width: 220px; }
+.run-skip .why { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 1180px) {
+  .run-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .run-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+  .run-card-head { flex-wrap: wrap; gap: 8px 10px; }
+  .run-card-head .club,
+  .run-card-head .cat { min-width: 0; }
+  .run-card-head .title { flex-basis: 100%; white-space: normal; }
+  .run-error,
+  .run-skip { flex-direction: column; gap: 2px; }
+  .run-error .who,
+  .run-skip .who,
+  .run-skip .what { min-width: 0; }
+  .run-skip .why { white-space: normal; }
+}
