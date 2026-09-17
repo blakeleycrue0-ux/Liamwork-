@@ -62,40 +62,49 @@ function describeCause(cause) {
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
- * The rest of the headers a browser sends.
+ * El resto de cabeceras, y las que deliberadamente NO se mandan.
  *
- * A request carrying only a User-Agent and an Accept is recognisable as a bot
- * from the header list alone, and some WAFs answer 403 on that basis without
- * ever looking at the page. These go to EVERY site, so there is no per-site
- * special case to maintain and no site is treated differently from the others.
+ * Medido, no supuesto: fetch() no deja fijar `sec-fetch-mode`. Es una cabecera
+ * que la propia especificación controla, y undici la reescribe a "cors". Un
+ * navegador que ABRE una página manda siempre "navigate"; "cors" es lo que
+ * manda una llamada de fondo. Enviar el resto del juego sec-fetch/sec-ch-ua
+ * junto a un "cors" produce una combinación que ningún navegador genera
+ * jamás, y eso delata al cliente ante un cortafuegos con más claridad que no
+ * mandarlas. Así que no se mandan: lo que queda es coherente y cierto.
  */
 const BROWSER_HEADERS = {
   'accept-language': 'sv-SE,sv;q=0.9,es;q=0.8,en;q=0.7',
+  'upgrade-insecure-requests': '1',
   'cache-control': 'no-cache',
   pragma: 'no-cache',
-  'upgrade-insecure-requests': '1',
-  'sec-fetch-dest': 'document',
-  'sec-fetch-mode': 'navigate',
-  'sec-fetch-site': 'none',
-  'sec-fetch-user': '?1',
-  'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
-  'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"macOS"',
 };
 
 export const userAgent = () => config.crawler.userAgent;
 
-/**
- * Small wrapper around fetch with timeout, UA and redirect handling.
- * Every fetcher goes through here, so timeouts and - more importantly -
- * character decoding behave identically everywhere.
- *
- * The body is read as BYTES and decoded by src/crawler/encoding.js rather
- * than by `response.text()`. `response.text()` believes the Content-Type
- * header, and a server that declares ISO-8859-1 while sending UTF-8 is
- * exactly how "Välkommen" became "VÃ¤lkommen" in the emails.
- */
-export async function fetchText(url, { timeoutMs = config.crawler.timeoutMs, accept } = {}) {
+/** Las cookies que el servidor acaba de dar, listas para devolvérselas. */
+function cookiesFrom(response) {
+  const jar = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie() : [];
+  const pairs = jar
+    .map((line) => String(line).split(';')[0].trim())
+    .filter((pair) => pair.includes('='));
+  return pairs.length ? pairs.join('; ') : '';
+}
+
+/** El mismo sitio escrito de la otra manera: con www o sin él. */
+function otherHost(url) {
+  try {
+    const parsed = new URL(url);
+    parsed.hostname = parsed.hostname.startsWith('www.')
+      ? parsed.hostname.slice(4)
+      : `www.${parsed.hostname}`;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Una sola petición, sin reintentos. Lo que antes era fetchText entero. */
+async function once(url, { timeoutMs, accept, cookie }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -106,9 +115,14 @@ export async function fetchText(url, { timeoutMs = config.crawler.timeoutMs, acc
         ...BROWSER_HEADERS,
         'user-agent': userAgent(),
         accept: accept ?? 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        ...(cookie ? { cookie } : {}),
       },
     });
-    if (!response.ok) throw new HttpError(response.status, url);
+    if (!response.ok) {
+      const error = new HttpError(response.status, url);
+      error.cookies = cookiesFrom(response);
+      throw error;
+    }
 
     const contentType = response.headers.get('content-type') || '';
     const raw = Buffer.from(await response.arrayBuffer());
@@ -130,5 +144,52 @@ export async function fetchText(url, { timeoutMs = config.crawler.timeoutMs, acc
     throw error;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Los códigos en los que un segundo intento tiene sentido de verdad. */
+const WORTH_A_COOKIE = new Set([401, 403, 429, 503]);
+
+/**
+ * Descarga una página, con exactamente dos segundas oportunidades.
+ *
+ * Ninguna de las dos es un apaño para un sitio concreto: son las dos formas
+ * en que un servidor sano rechaza una primera petición perfectamente legítima.
+ *
+ *   1. El cortafuegos contesta 403 y de paso deja una cookie (Cloudflare pone
+ *      __cf_bm así). Un navegador la guarda y vuelve a pedir; este cliente no
+ *      lo hacía, así que se quedaba fuera para siempre. Se reintenta UNA vez
+ *      devolviéndole lo que acaba de dar.
+ *
+ *   2. La conexión ni se abre. Muchísimos dominios publican sólo "www" o sólo
+ *      el dominio pelado, y la lista guarda el otro. Se prueba el gemelo UNA
+ *      vez, y sólo cuando el fallo es de conexión: si el servidor respondió
+ *      algo, respondió, y no hay nada que adivinar.
+ *
+ * Como mucho una petición extra. El crawler recorre veintisiete sitios dos
+ * veces al día: duplicar el tráfico por si acaso sería una falta de respeto.
+ */
+export async function fetchText(url, { timeoutMs = config.crawler.timeoutMs, accept, retry = true } = {}) {
+  try {
+    return await once(url, { timeoutMs, accept });
+  } catch (error) {
+    if (!retry) throw error;
+
+    if (error instanceof HttpError && WORTH_A_COOKIE.has(error.status) && error.cookies) {
+      return once(url, { timeoutMs, accept, cookie: error.cookies });
+    }
+
+    if (error instanceof NetworkError) {
+      const twin = otherHost(url);
+      if (twin && twin !== url) {
+        // Si el gemelo tampoco abre, el error que se cuenta es el original:
+        // el que interesa es el de la dirección que está en la lista.
+        return once(twin, { timeoutMs, accept }).catch(() => {
+          throw error;
+        });
+      }
+    }
+
+    throw error;
   }
 }

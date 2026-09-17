@@ -27,7 +27,7 @@ statusRoutes.get(
         lastCheckedAt(),
         countErrorsSince(since24h),
         listChanges({ limit: 8 }),
-        listLogs({ onlyErrors: true, limit: 8 }),
+        listLogs({ onlyErrors: true, limit: 1 }),
         getInt('scheduler_tick', 15),
         reportStatus(),
         usageSince(since7d),
@@ -55,10 +55,14 @@ statusRoutes.get(
       workers,
       checks: { last_checked_at: checkedAt, errors_24h: errors24h },
       report,
-      usage_7d: usage7d,
+      // El recuento de análisis sí es información de producto ("cuánto ha
+      // trabajado el sistema"); los tokens y el modelo son de infraestructura
+      // y se quedan en /api/diagnostics.
+      usage_7d: { analyses: usage7d.analyses },
       recent_changes: reportable,
-      recent_errors: recentErrors,
-      mail: { transport: config.mail.transport, from: config.mail.from },
+      // Ni transporte ni remitente: el panel sólo necesita saber si el correo
+      // está configurado. El resto describe la instalación.
+      mail: { configured: config.mail.transport === 'smtp' },
       brand: { name: config.brand.name, credit: config.brand.credit, owner: config.brand.owner },
       server_time: new Date().toISOString(),
     });

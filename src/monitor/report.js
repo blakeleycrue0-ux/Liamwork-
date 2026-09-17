@@ -23,6 +23,7 @@ import { activeRecipients } from '../notifications/notifier.js';
 import { sendMail } from '../notifications/mailer.js';
 import { aiConfigured, DEFAULT_MODEL } from './analyze.js';
 import { buildReportEmail } from './report.email.js';
+import { publicAttemptReason } from './errors.js';
 import { dayWindow, nextReportAt, previousDate, reportDue } from './window.js';
 
 /**
@@ -367,9 +368,11 @@ export async function reportStatus(now = new Date()) {
       date: attempt.report_date,
       origin: attempt.origin,
       outcome: attempt.outcome,
-      reason: attempt.reason,
+      // El motivo, sin el mensaje del servidor de correo. El literal sigue
+      // en report_attempts, intacto, que es donde se arregla.
+      reason: publicAttemptReason(attempt.reason),
       changes: attempt.changes,
-      recipients: attempt.recipients,
+      recipients: attempt.recipients?.length ?? 0,
     },
   };
 }

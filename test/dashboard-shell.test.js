@@ -51,6 +51,16 @@ test('no invented logo, no emoji, no decoration masquerading as an icon', () => 
     assert.ok(sprites.includes(name), `#${name} is defined in the sprite`);
   }
 
+  // El juego de iconos es cerrado: cada uno que el panel pide existe, y
+  // ninguno sobra. Los que se usan desde JS llegan por variable, así que la
+  // lista va escrita aquí a propósito: si alguien añade un icono suelto o
+  // borra uno que hace falta, esta prueba se entera.
+  const NEEDED = [
+    'i-menu', 'i-settings', 'i-logout', 'i-search', 'i-mail', 'i-check',
+    'i-check-circle', 'i-x-circle', 'i-alert', 'i-pause', 'i-file', 'i-plus',
+  ];
+  assert.deepEqual(sprites.slice().sort(), NEEDED.slice().sort(), 'ni un icono de más ni de menos');
+
   const inlineSvgs = html.match(/<svg[^>]*>/g) ?? [];
   // One sprite container plus one <svg><use> per icon: nothing draws its own.
   for (const [index, tag] of inlineSvgs.entries()) {
@@ -101,10 +111,16 @@ test('the report card states the behaviour instead of leaving it to be guessed',
   assert.ok(app.includes("'DESACTIVADO'"));
 });
 
-test('an error is explained, never repainted', () => {
-  assert.ok(app.includes('function errorCell'), 'the error has its own cell');
-  assert.ok(app.includes('website.error_detail'), 'it shows the reason the server gave');
-  assert.ok(!app.includes('last_error = null'), 'nothing clears an error for display');
+test('un fallo se traduce, nunca se repinta ni se calla', () => {
+  // El panel dice lo que le pasa a la WEB; el mensaje del crawler no llega
+  // hasta aquí. Pero el estado sí se muestra, y sale del dato real.
+  assert.ok(app.includes('function statusCell'), 'el estado tiene su propia celda');
+  assert.ok(app.includes('website.status'), 'y sale de lo que manda el servidor');
+  assert.ok(!app.includes('last_error'), 'el mensaje interno ni se pide ni se pinta');
+  assert.ok(!/ENOTFOUND|HTTP 403|smtp|tokens de entrada/i.test(app), 'nada de infraestructura en el frontend');
+
+  // Y lo que nunca puede pasar: que una web que falla se cuente como buena.
+  assert.ok(!/status\s*=\s*null/.test(app), 'nada borra un estado de fallo');
 });
 
 test('every legal page exists and links back to the others', () => {

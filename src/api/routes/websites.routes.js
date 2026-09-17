@@ -11,20 +11,30 @@ import { listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { crawlWebsite } from '../../monitor/crawl.js';
 import { aiConfigured, detectWithAi, previewWebsite } from '../../crawler/fetchers/index.js';
 import { inspectWebsite } from '../../crawler/inspect.js';
-import { explainError } from '../../monitor/errors.js';
+import { explainError, publicError } from '../../monitor/errors.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { parseWebsitePayload, ValidationError } from '../validate.js';
 
 export const websiteRoutes = Router();
 
-// `error_detail` is derived, never stored: the raw last_error stays exactly as
-// the crawler wrote it, and the dashboard gets a sentence next to it.
-const withStats = async (website) =>
-  website && {
-    ...website,
+/**
+ * Lo que sale al panel.
+ *
+ * `last_error` en crudo NO se publica: un código HTTP o un ENOTFOUND no le
+ * dicen nada a quien vigila clubes de golf, y en cambio describen la
+ * instalación a quien la quiera sondear. Va `status` traducido, y el detalle
+ * técnico entero se queda en /api/diagnostics, tras la misma autenticación.
+ */
+const withStats = async (website) => {
+  if (!website) return website;
+  const { last_error: raw, ...rest } = website;
+  return {
+    ...rest,
     posts_count: await countPages(website.id),
-    error_detail: explainError(website.last_error),
+    failing: Boolean(raw),
+    status: publicError(raw, { consecutive: website.consecutive_errors ?? 0 }),
   };
+};
 
 websiteRoutes.get(
   '/',
@@ -46,6 +56,34 @@ websiteRoutes.get(
 // No POST / and no DELETE /:id on purpose. The watched list lives in
 // src/config/sites.js and is published on boot; nobody adds or removes a site
 // through the dashboard, so the endpoints that would allow it do not exist.
+
+/**
+ * El detalle técnico de una web, para quien lo tenga que arreglar.
+ *
+ * Aquí sí va todo: el mensaje literal que guardó el crawler, el código y la
+ * causa. Vive detrás de la misma autenticación que el resto de /api/websites
+ * -a diferencia de /api/diagnostics, que es público- y el panel sólo lo pide
+ * al abrir el historial de una web, nunca al pintar una tabla.
+ */
+websiteRoutes.get(
+  '/:id/diagnostics',
+  asyncHandler(async (req, res) => {
+    const website = await getWebsite(Number(req.params.id));
+    if (!website) return res.status(404).json({ error: 'Web no encontrada' });
+    return res.json({
+      diagnostics: {
+        url: website.url,
+        last_checked_at: website.last_checked_at,
+        last_success_at: website.last_success_at,
+        last_error_at: website.last_error_at,
+        consecutive_errors: website.consecutive_errors,
+        error_count: website.error_count,
+        raw: website.last_error ?? null,
+        detail: explainError(website.last_error),
+      },
+    });
+  }),
+);
 
 websiteRoutes.put(
   '/:id',

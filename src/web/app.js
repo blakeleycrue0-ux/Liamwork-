@@ -86,7 +86,7 @@ function showBanner(message) {
 
 function toast(message, kind = '') {
   const node = el('div', { className: `toast ${kind}` }, [
-    icon(kind === 'err' ? 'x-circle' : kind === 'ok' ? 'check-circle' : 'pulse', 'icon icon-sm'),
+    icon(kind === 'err' ? 'x-circle' : kind === 'ok' ? 'check-circle' : 'alert', 'icon icon-sm'),
     el('span', { textContent: message }),
   ]);
   $('#toasts').append(node);
@@ -191,24 +191,18 @@ const prioChip = (priority) => {
 };
 
 /**
- * The error, spelled out.
+ * El estado de una web, en una celda.
  *
- * The API sends `error_detail` next to the raw `last_error`, so the code the
- * server really returned stays visible and the sentence explains it. Nothing
- * is hidden and nothing is repainted green.
+ * El servidor ya manda la frase traducida; aquí no se interpreta nada. Y lo
+ * que no llega no se puede enseñar por accidente: el mensaje del crawler no
+ * sale de /api/websites/:id/diagnostics.
  */
-function errorCell(website) {
-  if (!website.last_error) {
-    return el('td', { className: 'dim', textContent: '—' }, []);
-  }
-  const detail = website.error_detail ?? { code: 'Error', reason: website.last_error };
+function statusCell(website) {
+  const look = websiteState(website);
   return el('td', {}, [
-    el('div', { className: 'err' }, [
-      el('span', { className: 'code', textContent: detail.code }),
-      el('span', { className: 'why', textContent: detail.reason }),
-      website.consecutive_errors > 1
-        ? el('span', { className: 'again', textContent: `${website.consecutive_errors} intentos seguidos` })
-        : '',
+    el('div', { className: 'status' }, [
+      stateChip(look.kind, look.label),
+      look.note ? el('span', { className: 'status-note', textContent: look.note }) : '',
     ]),
   ]);
 }
@@ -233,12 +227,14 @@ const websiteCell = (website) =>
     }),
   ]);
 
-/** How a website is doing right now, in one word. */
+/** Cómo está una web ahora mismo, en una palabra. */
 function websiteState(website) {
-  if (!website.active) return { kind: 'off', label: 'Desactivada' };
-  if (website.consecutive_errors) return { kind: 'bad', label: 'Con error' };
-  if (!website.last_checked_at) return { kind: 'warn', label: 'Sin comprobar' };
-  return { kind: 'ok', label: 'Correcta' };
+  if (!website.active) return { kind: 'off', label: 'Desactivada', note: '' };
+  if (website.status) {
+    return { kind: 'bad', label: website.status.label, note: website.status.note };
+  }
+  if (!website.last_checked_at) return { kind: 'warn', label: 'Sin comprobar', note: '' };
+  return { kind: 'ok', label: 'Correcta', note: '' };
 }
 
 /* ------------------------------------------------------------------ modal */
@@ -447,20 +443,23 @@ async function refreshStatus() {
   $('#s-workers-sub').textContent = `${data.workers.total} dados de alta`;
 
   $('#s-errors').textContent = String(data.checks.errors_24h);
-  $('#s-errors-sub').textContent = `${data.usage_7d.analyses} análisis en 7 días`;
+  $('#s-errors-sub').textContent = data.checks.errors_24h
+    ? 'comprobaciones sin éxito'
+    : 'ninguna comprobación falló';
 
   /* --- estado del sistema, en filas --- */
-  const tokens = data.usage_7d.input_tokens + data.usage_7d.output_tokens;
+  // Lo que se cuenta aquí es producto, no instalación: cuándo miró, cuánto
+  // tardó, cuánto trabajo hizo. Ni transportes, ni modelos, ni tokens.
   $('#system-rows').replaceChildren(
     ...[
-      ['Crawler', stateChip(look.kind, look.label)],
-      ['Última pasada', crawler.last_run_at ? fmtTime(crawler.last_run_at) : '—'],
-      ['Duración', crawler.last_run_duration_ms
+      ['Vigilancia', stateChip(look.kind, look.label)],
+      ['Última revisión', crawler.last_run_at ? fmtTime(crawler.last_run_at) : '—'],
+      ['Ha tardado', crawler.last_run_duration_ms
         ? fmtDuration(Math.round(crawler.last_run_duration_ms / 1000))
         : '—'],
-      ['Correo', data.mail.transport],
-      ['Modelo (7 días)', `${tokens.toLocaleString('es-ES')} tokens`],
-      ['Hora del servidor', fmtTime(data.server_time)],
+      ['Revisiones al día', 'Dos'],
+      ['Analizado esta semana', `${data.usage_7d.analyses} cambio(s)`],
+      ['Aviso por correo', data.mail.configured ? stateChip('ok', 'Configurado') : stateChip('warn', 'Sin configurar')],
     ].map(([key, value]) =>
       el('div', {}, [
         el('dt', { textContent: key }),
@@ -476,7 +475,9 @@ async function refreshStatus() {
       : [emptyRow(6, 'Todavía no se ha detectado ningún cambio')]),
   );
 
-  $('#mail-info').textContent = `Transporte: ${data.mail.transport} · Remitente: ${data.mail.from}`;
+  $('#mail-info').textContent = data.mail.configured
+    ? 'El correo saliente está configurado. Las credenciales viven en variables de entorno, nunca en el panel.'
+    : 'No hay servidor de correo configurado: el informe no puede salir.';
   if (data.brand?.credit) $('#footer-credit').textContent = data.brand.credit;
 
   await Promise.all([refreshDigest().catch(() => {}), refreshSummaryWebsites().catch(() => {})]);
@@ -496,7 +497,7 @@ async function refreshSummaryWebsites() {
   state.websites = websites;
 
   const ordered = websites.slice().sort((a, b) => {
-    const rank = (site) => (site.last_error ? 0 : site.active ? 2 : 1);
+    const rank = (site) => (site.failing ? 0 : site.active ? 2 : 1);
     return rank(a) - rank(b) || a.name.localeCompare(b.name, 'es');
   });
 
@@ -509,7 +510,7 @@ async function refreshSummaryWebsites() {
           const look = websiteState(website);
           return el('tr', {}, [
             websiteCell(website),
-            label(el('td', {}, [stateChip(look.kind, look.label)]), 'Estado'),
+            label(statusCell(website), 'Estado'),
             label(el('td', { className: 'cell-time dim', textContent: fmtAgo(website.last_checked_at) }), 'Comprobada'),
             label(
               el('td', { className: 'muted' }, [
@@ -519,12 +520,11 @@ async function refreshSummaryWebsites() {
                   textContent: website.last_new_item_title || 'Sin novedades',
                 }),
               ]),
-              'Último cambio',
+              'Cambio',
             ),
-            label(errorCell(website), 'Error'),
           ]);
         })
-      : [emptyRow(5, 'La lista de webs está vacía')]),
+      : [emptyRow(4, 'La lista de webs está vacía')]),
   );
 }
 
@@ -557,7 +557,9 @@ function changeRow(change) {
       ]),
       'Resultado',
     ),
-    label(el('td', {}, [reportable ? prioChip(change.priority) : el('span', { className: 'prio low', textContent: '—' })]), 'Prioridad'),
+    reportable
+      ? label(el('td', {}, [prioChip(change.priority)]), 'Prioridad')
+      : el('td', { className: 'is-blank' }, [el('span', { className: 'prio low', textContent: '—' })]),
     label(
       el('td', {}, [
         reportable
@@ -593,18 +595,21 @@ async function showChangeAudit(id) {
           el('div', { textContent: `Ahora: ${change.new_value}` }),
         ])
       : '',
-    el('h2', { style: 'margin-top:22px', textContent: 'Auditoría' }),
-    el('div', { className: 'hint', textContent:
-      `Modelo: ${audit.model ?? 'ninguno'} · ${audit.input_tokens} tokens de entrada (${audit.cached_tokens} en caché), ${audit.output_tokens} de salida` }),
-    change.reasoning ? el('p', { className: 'muted', textContent: change.reasoning }) : '',
-    el('div', { className: 'hint', style: 'margin-top:14px', textContent: 'Lo que vio el modelo:' }),
-    el('pre', { className: 'preview-box mono', textContent: audit.input || '—' }),
-    versions.before
-      ? el('details', {}, [
-          el('summary', { className: 'hint', textContent: `Versión anterior (${fmtDateTime(versions.before.captured_at)})` }),
-          el('pre', { className: 'preview-box mono', textContent: versions.before.text.slice(0, 4000) }),
-        ])
-      : '',
+    // Por qué se decidió así. El razonamiento sí es del producto: explica el
+    // veredicto. El recuento de tokens y el nombre del modelo no, así que se
+    // quedan detrás de "Ver el texto comparado", plegado y sin cifras.
+    el('h3', { textContent: 'Por qué' }),
+    el('p', { className: 'muted', textContent: change.reasoning || 'Sin explicación registrada.' }),
+    el('details', {}, [
+      el('summary', { textContent: 'Ver el texto comparado' }),
+      el('pre', { className: 'preview-box mono', textContent: audit.input || '—' }),
+      versions.before
+        ? el('pre', {
+            className: 'preview-box mono',
+            textContent: versions.before.text.slice(0, 4000),
+          })
+        : '',
+    ]),
   ]);
 
   const close = el('button', { textContent: 'Cerrar' });
@@ -707,10 +712,10 @@ function renderAttempt(attempt) {
         ` · informe del ${fmtDay(attempt.date)} · ${fmtAgo(attempt.at)}`,
       ]),
       attempt.reason ? el('span', { className: 'note', textContent: attempt.reason }) : '',
-      attempt.outcome === 'enviado' && attempt.recipients?.length
+      attempt.outcome === 'enviado' && attempt.recipients
         ? el('span', {
             className: 'note',
-            textContent: `${attempt.recipients.length} destinatario(s) · ${attempt.changes} cambio(s)`,
+            textContent: `${attempt.recipients} destinatario(s) · ${attempt.changes} cambio(s)`,
           })
         : '',
     ]),
@@ -1006,8 +1011,8 @@ function renderWebsites() {
   }
 
   const body = $('#websites-body');
-  if (!state.websites.length) return body.replaceChildren(emptyRow(6, 'La lista de webs está vacía.'));
-  if (!rows.length) return body.replaceChildren(emptyRow(6, 'Ninguna web encaja con este filtro.'));
+  if (!state.websites.length) return body.replaceChildren(emptyRow(5, 'La lista de webs está vacía.'));
+  if (!rows.length) return body.replaceChildren(emptyRow(5, 'Ninguna web encaja con este filtro.'));
 
   body.replaceChildren(
     ...rows.map((website) => {
@@ -1073,7 +1078,7 @@ function renderWebsites() {
 
       return el('tr', {}, [
         websiteCell(website),
-        label(el('td', {}, [stateChip(look.kind, look.label)]), 'Estado'),
+        label(statusCell(website), 'Estado'),
         label(
           el('td', { className: 'cell-time dim', title: fmtDateTime(website.last_checked_at) }, [
             el('span', { textContent: fmtAgo(website.last_checked_at) }),
@@ -1088,9 +1093,8 @@ function renderWebsites() {
               textContent: website.last_new_item_title || 'Sin novedades',
             }),
           ]),
-          'Último cambio',
+          'Cambio',
         ),
-        label(errorCell(website), 'Error'),
         el('td', { className: 'actions' }, [el('div', { className: 'row-actions' }, actions)]),
       ]);
     }),
@@ -1126,14 +1130,14 @@ async function showHistory(website) {
   const modal = el('div', { className: 'modal' }, [
     el('h2', { textContent: `Historial · ${website.name}` }),
     el('h2', { className: 'muted', textContent: 'Publicaciones detectadas' }),
-    el('div', { className: 'table-wrap' }, [
+    el('div', { className: 'table' }, [
       el('table', {}, [
         el('thead', {}, [el('tr', {}, [el('th', { textContent: 'Título' }), el('th', { textContent: 'Detectada' }), el('th', { textContent: 'Email' })])]),
         el('tbody', {}, postRows),
       ]),
     ]),
     el('h2', { className: 'muted', style: 'margin-top:16px', textContent: 'Comprobaciones' }),
-    el('div', { className: 'table-wrap' }, [
+    el('div', { className: 'table' }, [
       el('table', {}, [
         el('thead', {}, [el('tr', {}, [el('th', { textContent: 'Cuándo' }), el('th', { textContent: 'Resultado' }), el('th', { textContent: 'Detalle' })])]),
         el('tbody', {}, logRows),
@@ -1299,12 +1303,12 @@ async function loadActivity() {
       event: 'Comprobación',
       ok: Boolean(log.success),
       state: log.success ? 'ok' : 'bad',
-      result: log.success ? 'Correcta' : 'Error',
+      result: log.success ? 'Comprobada' : (log.outcome ?? 'No disponible'),
       priority: null,
       detail: log.success
-        ? `${log.items_found} página(s), ${log.new_items} con cambios · ${log.duration_ms ?? '—'} ms`
-        : explainStored(log.error_message) || 'Error sin detalle',
-      search: `${log.website_name} ${log.error_message ?? ''} ${log.method ?? ''}`,
+        ? `${log.items_found} página(s) leídas, ${log.new_items} con cambios`
+        : log.outcome ?? 'No se pudo comprobar',
+      search: `${log.website_name} ${log.outcome ?? ''}`,
     })),
     ...changes.map((change) => {
       const type = CHANGE_TYPES[change.change_type] ?? { label: change.change_type };
@@ -1313,10 +1317,16 @@ async function loadActivity() {
         at: change.detected_at,
         website: change.website_name,
         kind: 'change',
-        event: reportable ? 'Cambio detectado' : 'Revisión',
+        event: reportable
+          ? change.change_type === 'NEW'
+            ? 'Contenido nuevo'
+            : 'Página actualizada'
+          : change.change_type === 'UNCHANGED'
+            ? 'Sin cambios'
+            : 'Cambio descartado',
         ok: true,
         state: reportable ? 'info' : 'off',
-        result: type.label,
+        result: reportable ? 'Entra en el informe' : 'No entra en el informe',
         priority: reportable ? change.priority : null,
         detail: [change.title, change.summary].filter(Boolean).join(' — ') || '—',
         changeId: change.id,
@@ -1327,46 +1337,26 @@ async function loadActivity() {
       at: attempt.attempted_at,
       website: '—',
       kind: 'report',
-      event: `Informe ${attempt.origin === 'manual' ? 'a mano' : 'automático'}`,
+      event: attempt.origin === 'manual' ? 'Informe enviado a mano' : 'Informe automático',
       ok: attempt.outcome === 'enviado',
       state: attempt.outcome === 'enviado' ? 'ok' : attempt.outcome === 'fallido' ? 'bad' : 'off',
       result:
-        attempt.outcome === 'enviado' ? 'Enviado' : attempt.outcome === 'fallido' ? 'No salió' : 'Omitido',
+        attempt.outcome === 'enviado'
+          ? 'Enviado'
+          : attempt.outcome === 'fallido'
+            ? 'No se pudo enviar'
+            : 'No hacía falta',
       priority: null,
       detail:
-        `Informe del ${fmtDay(attempt.report_date)} · ${attempt.changes} cambio(s)` +
-        (attempt.reason ? ` · ${attempt.reason}` : '') +
+        `Del ${fmtDay(attempt.report_date)}, con ${attempt.changes} cambio(s)` +
         (attempt.recipients?.length ? ` · ${attempt.recipients.length} destinatario(s)` : ''),
-      search: `informe ${attempt.origin} ${attempt.outcome} ${attempt.reason ?? ''}`,
+      search: `informe ${attempt.origin} ${attempt.outcome}`,
     })),
   ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
   state.activity = events;
   fillWebFilter(events);
   renderActivity();
-}
-
-/** Los errores ya guardados se leen igual que en la tabla de webs. */
-function explainStored(message) {
-  if (!message) return '';
-  const http = String(message).match(/^HTTP (\d{3})/);
-  if (http) {
-    const reasons = {
-      401: 'la página exige iniciar sesión',
-      403: 'el servidor rechazó la petición',
-      404: 'la página ya no existe en esa dirección',
-      429: 'demasiadas peticiones: el servidor pide esperar',
-      500: 'error interno del servidor',
-      502: 'la pasarela del sitio no respondió',
-      503: 'el sitio está caído o en mantenimiento',
-      504: 'el servidor tardó demasiado en responder',
-    };
-    return `HTTP ${http[1]} — ${reasons[Number(http[1])] ?? 'respuesta inesperada del servidor'}`;
-  }
-  const timeout = String(message).match(/^Timeout after (\d+)ms/i);
-  if (timeout) return `Tiempo agotado — sin respuesta en ${Math.round(Number(timeout[1]) / 1000)} s`;
-  if (/^fetch failed$/i.test(message)) return 'Sin conexión — causa no registrada';
-  return String(message).replace(/\s+(para|for)\s+https?:\/\/\S+$/i, '');
 }
 
 /** El desplegable de webs se rellena con las que de verdad aparecen. */
@@ -1427,12 +1417,9 @@ function renderActivity() {
             label(el('td', { className: 'primary cell-name', textContent: event.website }), 'Web'),
             label(el('td', { className: 'muted', textContent: event.event }), 'Evento'),
             label(el('td', {}, [stateChip(event.state, event.result)]), 'Resultado'),
-            label(
-              el('td', {}, [
-                event.priority ? prioChip(event.priority) : el('span', { className: 'prio low', textContent: '—' }),
-              ]),
-              'Prioridad',
-            ),
+            event.priority
+              ? label(el('td', {}, [prioChip(event.priority)]), 'Prioridad')
+              : el('td', { className: 'is-blank' }, [el('span', { className: 'prio low', textContent: '—' })]),
             label(
               el('td', { className: 'muted' }, [
                 el('span', { className: 'cell-text', title: event.detail, textContent: event.detail }),

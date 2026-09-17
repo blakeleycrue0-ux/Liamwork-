@@ -1,4 +1,20 @@
 /**
+ * Dos lecturas del mismo fallo: la que ve cualquiera y la que ve quien lo va
+ * a arreglar.
+ *
+ * `publicError` da la frase del panel: qué le pasa a la web, sin una sola
+ * palabra de infraestructura. Un código HTTP, un nombre de servidor o un
+ * ENOTFOUND no le dicen nada a quien vigila veintisiete clubes de golf, y en
+ * cambio sí le dicen bastante a quien quiera sondear la instalación.
+ *
+ * `explainError` da el detalle técnico, y sigue existiendo entero: vive en
+ * /api/diagnostics, que está detrás de la misma autenticación que el resto.
+ *
+ * Lo que NO hace ninguna de las dos es cambiar el veredicto. Una web que
+ * falla falla, se cuente como se cuente.
+ */
+
+/**
  * Turns a stored crawler error into a sentence a person can act on.
  *
  * The rule the dashboard follows: never hide a failure and never dress it up
@@ -88,4 +104,56 @@ export function explainError(message) {
   const codes = { dns: 'DNS', tls: 'TLS', timeout: 'Tiempo agotado', network: 'Sin conexión' };
   const code = codes[kind] ?? 'Error';
   return { code, reason: withoutUrl, text: `${code} — ${withoutUrl}`, kind };
+}
+
+
+/* ---------------------------------------------------------------- público */
+
+/**
+ * Lo que se enseña en el panel: el estado de la WEB, no el de la petición.
+ *
+ * Tres estados y ni uno más, porque son los tres que cambian lo que alguien
+ * puede hacer: la página está y responde, la página responde pero no nos deja
+ * entrar, o no hemos conseguido hablar con ella. El código exacto, el nombre
+ * del servidor y la causa del sistema operativo se quedan en diagnóstico.
+ */
+export function publicError(message, { consecutive = 0 } = {}) {
+  if (!message) return null;
+  const kind = errorKind(message);
+
+  const label =
+    kind === 'missing'
+      ? 'Página no encontrada'
+      : kind === 'blocked' || kind === 'http' || kind === 'server'
+        ? 'No disponible'
+        : kind === 'timeout'
+          ? 'Sin respuesta'
+          : 'No se ha podido conectar';
+
+  const note =
+    consecutive > 1
+      ? `${consecutive} comprobaciones seguidas sin éxito`
+      : 'Última comprobación fallida';
+
+  return { label, note, kind };
+}
+
+/**
+ * El motivo de un intento de envío, dicho sin infraestructura.
+ *
+ * Los motivos que escribe sendDailyReport son casi todos de producto -"no hay
+ * trabajadores activos", "no hubo cambios"- y salen tal cual. El único que no
+ * lo es, el del correo, arrastra el mensaje del servidor SMTP: host, puerto y
+ * a veces el usuario. Ese se resume. El texto literal sigue guardado en
+ * report_attempts, que es donde hay que mirar para arreglarlo.
+ */
+export function publicAttemptReason(reason) {
+  if (!reason) return null;
+  const text = String(reason);
+  if (/^el correo no salió/i.test(text)) return 'El servidor de correo no aceptó el envío.';
+  // Cualquier cosa que traiga rastros de máquina se resume igual.
+  if (/smtp|:\d{2,5}\b|ECONN|ETIMEDOUT|EAUTH|certificate|socket/i.test(text)) {
+    return 'El informe no se pudo enviar por un problema técnico.';
+  }
+  return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? '' : '.');
 }

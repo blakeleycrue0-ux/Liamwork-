@@ -189,7 +189,30 @@ test('status endpoint reports the dashboard summary', async () => {
   assert.ok('status' in data.crawler);
   assert.ok(Array.isArray(data.recent_changes));
   assert.ok('covers_date' in data.report, 'the summary says which day the next report covers');
-  assert.ok('input_tokens' in data.usage_7d, 'and what the analysis has cost this week');
+  assert.ok('analyses' in data.usage_7d, 'and how much work the analysis has done this week');
+
+  // Lo que el panel NO recibe. Un código HTTP, un recuento de tokens o el
+  // nombre del transporte de correo no le sirven a quien vigila clubes de
+  // golf, y sí le sirven a quien quiera sondear la instalación. El detalle
+  // técnico vive en /api/websites/:id/diagnostics, tras la misma
+  // autenticación, no en la carga que pinta el Resumen.
+  const json = JSON.stringify(data);
+  assert.ok(!('recent_errors' in data), 'sin lista de errores en crudo');
+  assert.ok(!('input_tokens' in data.usage_7d), 'sin recuento de tokens');
+  assert.ok(!('transport' in data.mail), 'sin nombre del transporte de correo');
+  assert.ok(!/ENOTFOUND|HTTP \d{3}|smtp|nodemailer/i.test(json), 'sin rastros de infraestructura');
+});
+
+test('la lista de webs traduce el fallo y no publica el mensaje interno', async () => {
+  const { data } = await call('/api/websites');
+  for (const website of data.websites) {
+    assert.ok(!('last_error' in website), 'el mensaje del crawler no sale al panel');
+    assert.ok('failing' in website, 'pero sí si la web está fallando');
+    if (website.status) {
+      assert.ok(website.status.label, 'y en qué se traduce');
+      assert.doesNotMatch(website.status.label, /HTTP|ENOTFOUND|DNS|TLS/, 'en castellano llano');
+    }
+  }
 });
 
 test('settings are editable and validated', async () => {

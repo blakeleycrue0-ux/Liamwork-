@@ -4,6 +4,7 @@ import { listLogs } from '../../db/repositories/checkLogs.repo.js';
 import { getAllSettings, setSettings } from '../../db/repositories/settings.repo.js';
 import { verifyTransport } from '../../notifications/mailer.js';
 import { activeRecipients } from '../../notifications/notifier.js';
+import { publicError } from '../../monitor/errors.js';
 import { asyncHandler } from '../middleware/errors.js';
 import { ValidationError } from '../validate.js';
 
@@ -29,7 +30,15 @@ logRoutes.get(
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     const websiteId = req.query.website_id ? Number(req.query.website_id) : null;
     const onlyErrors = String(req.query.errors ?? '') === 'true';
-    res.json({ logs: await listLogs({ limit, websiteId, onlyErrors }) });
+    const logs = await listLogs({ limit, websiteId, onlyErrors });
+    // Igual que en la lista de webs: el mensaje literal del crawler no sale
+    // al registro. Va traducido a lo que le pasó a la web.
+    res.json({
+      logs: logs.map(({ error_message: raw, ...log }) => ({
+        ...log,
+        outcome: raw ? publicError(raw)?.label ?? 'No disponible' : null,
+      })),
+    });
   }),
 );
 

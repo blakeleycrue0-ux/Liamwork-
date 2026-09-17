@@ -22,20 +22,16 @@
   <defs>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
-    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></symbol>
     <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="m2 7 10 6 10-6"/></symbol>
-    <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></symbol>
-    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
-    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
     <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></symbol>
-    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><path d="M10 5v14M14 5v14"/></symbol>
-    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></symbol>
   </defs>
 </svg>
 
@@ -64,16 +60,14 @@
           <span class="dot off" id="sys-dot"></span>
           <span class="label" id="sys-label">—</span>
         </span>
-        <button class="btn-ghost icon-btn" id="run-now" title="Comprobar las webs ahora" aria-label="Comprobar ahora">
-          <svg class="icon"><use href="#i-refresh"/></svg>
-        </button>
+        <button class="btn-ghost btn-sm" id="run-now">Comprobar</button>
         <button class="btn-ghost icon-btn" id="nav-settings" title="Configuración" aria-label="Configuración">
           <svg class="icon"><use href="#i-settings"/></svg>
         </button>
-        <span class="avatar" id="avatar" title="">—</span>
         <button class="btn-ghost icon-btn" id="logout" hidden title="Salir" aria-label="Salir">
           <svg class="icon"><use href="#i-logout"/></svg>
         </button>
+        <span class="avatar" id="avatar" title="">—</span>
         <button class="btn-ghost icon-btn menu-btn" id="menu-btn" aria-label="Abrir el menú" aria-expanded="false">
           <svg class="icon"><use href="#i-menu"/></svg>
         </button>
@@ -129,57 +123,47 @@
         </div>
       </div>
 
-      <div class="cols">
-        <!-- El informe diario: la razón de ser del producto. -->
-        <section class="panel lead">
-          <div class="panel-head">
-            <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-mail"/></svg>
-            <span class="eyebrow">Informe diario</span>
-            <span class="spacer"></span>
-            <button class="btn-sm btn-ghost" id="digest-preview">
-              <svg class="icon icon-sm"><use href="#i-eye"/></svg>Ver borrador
-            </button>
-            <button class="btn-sm btn-primary" id="digest-send">
-              <svg class="icon icon-sm"><use href="#i-send"/></svg>Enviar ahora
-            </button>
-          </div>
-          <div class="panel-body">
-            <div class="report-title" id="digest-headline">—</div>
-            <div class="report-sub" id="digest-meta">—</div>
+      <section class="section report" aria-labelledby="report-heading">
+        <div class="section-head">
+          <h2 id="report-heading">Informe diario</h2>
+          <span class="spacer"></span>
+          <button class="btn-sm btn-ghost" id="digest-preview">Ver borrador</button>
+          <button class="btn-sm btn-primary" id="digest-send">Enviar ahora</button>
+        </div>
 
-            <dl class="kv">
-              <div>
-                <dt>Próximo informe</dt>
-                <dd id="digest-next">—</dd>
-              </div>
-              <div>
-                <dt>Último enviado</dt>
-                <dd id="digest-last">—</dd>
-              </div>
-              <div>
-                <dt>Cambios detectados</dt>
-                <dd id="digest-pending">—</dd>
-              </div>
-              <div>
-                <dt>Envío sin cambios</dt>
-                <dd id="digest-empty">—</dd>
-              </div>
-            </dl>
-
+        <div class="report-grid">
+          <div class="report-lead">
+            <p class="report-title" id="digest-headline">—</p>
+            <p class="report-sub" id="digest-meta">—</p>
             <div class="attempt" id="digest-attempt" hidden></div>
           </div>
-        </section>
 
-        <!-- Estado del sistema, en filas finas. -->
-        <section class="panel">
-          <div class="panel-head">
-            <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-pulse"/></svg>
-            <span class="eyebrow">Estado del sistema</span>
-          </div>
-          <div class="panel-body">
-            <dl class="rows" id="system-rows"></dl>
-          </div>
-        </section>
+          <dl class="kv">
+            <div>
+              <dt>Próximo informe</dt>
+              <dd id="digest-next">—</dd>
+            </div>
+            <div>
+              <dt>Último informe</dt>
+              <dd id="digest-last">—</dd>
+            </div>
+            <div>
+              <dt>Cambios detectados</dt>
+              <dd id="digest-pending">—</dd>
+            </div>
+            <div>
+              <dt>Envío automático</dt>
+              <dd id="digest-empty">—</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Estado del sistema</h2>
+        </div>
+        <dl class="rows" id="system-rows"></dl>
       </div>
 
       <div class="section">
@@ -250,8 +234,7 @@
         <table>
           <thead>
             <tr>
-              <th>Web</th><th>Estado</th><th>Última comprobación</th>
-              <th>Último cambio</th><th>Error</th><th></th>
+              <th>Web</th><th>Estado</th><th>Comprobada</th><th>Último cambio</th><th></th>
             </tr>
           </thead>
           <tbody id="websites-body"></tbody>
@@ -375,13 +358,10 @@
       </div>
 
       <form id="settings-form">
-        <div class="cols" style="margin-top:0">
-          <section class="panel">
-            <div class="panel-head">
-              <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-mail"/></svg>
-              <span class="eyebrow">Informe diario</span>
-            </div>
-            <div class="panel-body">
+        <div class="settings-grid">
+          <section class="block">
+            <div class="section-head"><h2>Informe diario</h2></div>
+            <div class="block-body">
               <div class="form-row">
                 <div>
                   <label for="notification_mode">Modo</label>
@@ -418,14 +398,11 @@
             </div>
           </section>
 
-          <section class="panel">
-            <div class="panel-head">
-              <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-send"/></svg>
-              <span class="eyebrow">Correo saliente</span>
-            </div>
-            <div class="panel-body">
+          <section class="block">
+            <div class="section-head"><h2>Correo saliente</h2></div>
+            <div class="block-body">
               <p class="muted" id="mail-info" style="font-size:13px">—</p>
-              <p class="hint">Las credenciales SMTP viven en variables de entorno, nunca en el panel.</p>
+              <p class="hint">Las credenciales del correo no se guardan aquí ni se pueden ver desde el panel.</p>
               <div class="form-actions" style="margin-top:18px">
                 <button type="button" class="btn-sm" id="verify-mail">Verificar SMTP</button>
               </div>
@@ -433,12 +410,9 @@
           </section>
         </div>
 
-        <section class="panel section">
-          <div class="panel-head">
-            <svg class="icon icon-sm" style="color:var(--fg-3)"><use href="#i-refresh"/></svg>
-            <span class="eyebrow">Comprobaciones</span>
-          </div>
-          <div class="panel-body">
+        <section class="block section">
+          <div class="section-head"><h2>Comprobaciones</h2></div>
+          <div class="block-body">
             <div class="form-row">
               <div>
                 <label for="default_check_interval">Intervalo por defecto (s)</label>

@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errors.js';
 import { buildReport, reportStatus, sendDailyReport } from '../../monitor/report.js';
 import { getAllSettings } from '../../db/repositories/settings.repo.js';
 import { listAttempts } from '../../db/repositories/reports.repo.js';
+import { publicAttemptReason } from '../../monitor/errors.js';
 import { previousDate } from '../../monitor/window.js';
 
 /**
@@ -36,9 +37,15 @@ digestRoutes.post(
  */
 digestRoutes.get(
   '/attempts',
-  asyncHandler(async (req, res) =>
-    res.json({ attempts: await listAttempts(Math.min(Number(req.query.limit) || 20, 100)) }),
-  ),
+  asyncHandler(async (req, res) => {
+    const attempts = await listAttempts(Math.min(Number(req.query.limit) || 20, 100));
+    res.json({
+      attempts: attempts.map((attempt) => ({
+        ...attempt,
+        reason: publicAttemptReason(attempt.reason),
+      })),
+    });
+  }),
 );
 
 /** The same report rendered for the dashboard, with no email sent. */
