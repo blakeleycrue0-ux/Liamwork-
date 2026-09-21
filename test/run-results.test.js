@@ -455,7 +455,7 @@ test('el mensaje de Slack lleva ficha, borrador y los dos enlaces', () => {
 
   const texto = JSON.stringify(message);
   assert.match(texto, /New/, 'dice que es nuevo');
-  assert.match(texto, /Torneo/, 'y de qué categoría');
+  assert.match(texto, /Tournaments/, 'y de qué categoría');
   assert.match(texto, /\*Club:\* Borås Golfklubb/);
   assert.match(texto, /\*Priority:\* HIGH/);
   assert.match(texto, /Draft message/);

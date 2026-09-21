@@ -133,7 +133,7 @@ test('25 cambios con límite 20: se envían 20 y quedan 5 pendientes', async () 
   assert.equal(report.payload.held_back_for_next_report, 5);
 
   const email = buildReportEmail(report);
-  assert.match(email.text, /5 cambios más quedan para el próximo informe/);
+  assert.match(email.text, /5 further changes are held for the next report/);
 
   const sent = await sendDailyReport({ date: '2026-04-01' });
   assert.equal(sent.sent, true);

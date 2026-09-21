@@ -41,17 +41,18 @@ const SummarySchema = z.object({
   daily_summary: z
     .string()
     .describe(
-      'Un párrafo corto en español, 2-4 frases: qué ha pasado hoy en conjunto. ' +
+      'Un párrafo corto EN INGLÉS, 2-4 frases: qué ha pasado hoy en conjunto. ' +
         'Nombra lo importante. Si no hay nada relevante, dilo en una frase.',
     ),
 });
 
 const SUMMARY_SYSTEM = `Escribes el párrafo de apertura del informe diario de un sistema que vigila páginas web de clubes deportivos.
 
-Recibes la lista de cambios ya clasificados del día. Escribe 2-4 frases en español que le digan a alguien con prisa qué ha pasado.
+Recibes la lista de cambios ya clasificados del día. Escribe 2-4 frases EN INGLÉS que le digan a alguien con prisa qué ha pasado.
 
 - Empieza por lo importante. Si hay algo de prioridad alta, va primero y con su nombre.
-- Concreto, no genérico: "tres clubes han publicado los horarios de octubre", no "ha habido varias actualizaciones".
+- Concreto, no genérico: "three clubs published their October tee times", no "there were several updates".
+- Los nombres de club y los titulares se citan tal cual, sin traducir.
 - No repitas la lista entera: el lector la tiene justo debajo.
 - No inventes nada que no esté en los datos.
 - Si no hay cambios, una sola frase basta.`;
@@ -178,16 +179,15 @@ async function writeDailySummary(items, { date, model, client }) {
   const empty = { model: null, usage: { input: 0, output: 0 } };
 
   if (!items.length) {
-    return { ...empty, text: 'No se ha detectado ningún cambio relevante en las webs vigiladas.' };
+    return { ...empty, text: 'No relevant changes were found on the monitored websites.' };
   }
   if (!aiConfigured()) {
     const high = items.filter((item) => item.priority === 'HIGH').length;
     return {
       ...empty,
       text:
-        `${items.length} cambio(s) detectado(s)` +
-        (high ? `, ${high} de prioridad alta.` : '.') +
-        ' (Resumen automático: falta ANTHROPIC_API_KEY para redactarlo.)',
+        `${items.length} change(s) found` +
+        (high ? `, ${high} of them high priority.` : '.'),
     };
   }
 
@@ -210,7 +210,7 @@ async function writeDailySummary(items, { date, model, client }) {
     });
 
     if (response.stop_reason === 'refusal' || !response.parsed_output) {
-      return { ...empty, text: `${items.length} cambio(s) detectado(s).` };
+      return { ...empty, text: `${items.length} change(s) found.` };
     }
     return {
       text: response.parsed_output.daily_summary,
@@ -222,7 +222,7 @@ async function writeDailySummary(items, { date, model, client }) {
     };
   } catch (error) {
     console.error(`[report] daily summary failed: ${error.message}`);
-    return { ...empty, text: `${items.length} cambio(s) detectado(s).` };
+    return { ...empty, text: `${items.length} change(s) found.` };
   }
 }
 

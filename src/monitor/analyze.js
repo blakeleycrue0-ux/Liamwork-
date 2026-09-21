@@ -45,14 +45,24 @@ export const RELEVANT_CATEGORIES = [
   'COURSE_INFO',
 ];
 
-/** Cómo se llama cada categoría donde la lee una persona. */
+/**
+ * Cómo se llama cada categoría donde la lee una persona.
+ *
+ * En INGLÉS, porque estas etiquetas sólo las usan los dos canales que salen
+ * del sistema: el correo diario y los mensajes de Slack. El panel tiene su
+ * propia lista, en castellano, en src/web/app.js - el navegador no puede
+ * importar de aquí, y esa separación es justo lo que permite que lo que sale
+ * fuera esté en inglés y lo que se mira dentro siga en castellano. Una prueba
+ * comprueba que las dos listas usan las mismas CLAVES; las etiquetas pueden
+ * diferir.
+ */
 export const CATEGORY_LABELS = {
-  TOURNAMENTS: { icon: '\u{1F3C6}', label: 'Torneo' },
-  NEWS_EVENTS: { icon: '\u{1F4E3}', label: 'Noticia o evento' },
-  PRACTICE: { icon: '\u{1F3CC}', label: 'Clases y prácticas' },
-  RESTAURANT: { icon: '\u{1F37D}', label: 'Restaurante' },
-  CLUB_SECTIONS: { icon: '\u{1F465}', label: 'Secciones del club' },
-  COURSE_INFO: { icon: '⛳', label: 'Estado del campo' },
+  TOURNAMENTS: { icon: '\u{1F3C6}', label: 'Tournaments' },
+  NEWS_EVENTS: { icon: '\u{1F4E3}', label: 'News & events' },
+  PRACTICE: { icon: '\u{1F3CC}', label: 'Practice & lessons' },
+  RESTAURANT: { icon: '\u{1F37D}', label: 'Restaurant' },
+  CLUB_SECTIONS: { icon: '\u{1F465}', label: 'Club sections' },
+  COURSE_INFO: { icon: '⛳', label: 'Course information' },
 };
 
 export const categoryLabel = (category) => CATEGORY_LABELS[category] ?? null;
@@ -78,9 +88,9 @@ const VerdictSchema = z.object({
               'LOW: cambio pequeño que no aporta información nueva. ' +
               'Para UNCHANGED e IGNORED usa siempre LOW.',
           ),
-        title: z.string().describe('Titular corto de lo ocurrido, en el idioma de la web'),
-        summary: z.string().describe('Una o dos frases en español: qué ha pasado y por qué importa. Vacío si no es NEW ni UPDATED.'),
-        what_changed: z.string().describe('Qué cambió exactamente y dónde. Vacío si no es NEW ni UPDATED.'),
+        title: z.string().describe('Titular corto de lo ocurrido, EN EL IDIOMA DE LA WEB (no se traduce)'),
+        summary: z.string().describe('Una o dos frases EN INGLÉS: qué ha pasado y por qué importa. Vacío si no es NEW ni UPDATED.'),
+        what_changed: z.string().describe('EN INGLÉS: qué cambió exactamente y dónde. Vacío si no es NEW ni UPDATED.'),
         previous_value: z.string().describe('El texto anterior concreto, si el cambio sustituye un valor. Si no, cadena vacía.'),
         new_value: z.string().describe('El texto nuevo concreto, si el cambio sustituye un valor. Si no, cadena vacía.'),
         reasoning: z.string().describe('Una frase: por qué esta clasificación y no otra. Para la auditoría.'),
@@ -99,7 +109,7 @@ const VerdictSchema = z.object({
         draft_message: z
           .string()
           .describe(
-            'Borrador de mensaje listo para copiar y enviar a los trabajadores, en español. ' +
+            'Borrador de mensaje listo para copiar y enviar a los trabajadores, EN INGLÉS. ' +
               'Solo con los datos que aparecen en la página. Cadena vacía si category es NONE ' +
               'o si el veredicto no es NEW ni UPDATED.',
           ),
@@ -166,7 +176,7 @@ Un cambio con category NONE no se envía a nadie. No lo fuerces a una categoría
 
 EL BORRADOR DE MENSAJE
 Cuando el veredicto sea NEW o UPDATED y category NO sea NONE, escribe además draft_message: el mensaje que un trabajador podría copiar y mandar tal cual al resto del equipo.
-- En español, natural, directo, 2-4 frases. Como escribiría una persona, no como un boletín.
+- EN INGLÉS, natural, directo, 2-4 frases. Como escribiría una persona, no como un boletín.
 - SOLO con lo que aparece en la página. No inventes NUNCA fechas, horas, precios, nombres, enlaces, plazos ni requisitos.
 - Si un dato no está, no lo pongas y no dejes hueco: redacta la frase sin él. "Se ha convocado el torneo de otoño" es correcto si no hay fecha; "el torneo de otoño del [fecha]" no lo es.
 - Sin asunto, sin firma, sin encabezado de correo: solo el cuerpo del mensaje.
@@ -180,7 +190,9 @@ No infles la prioridad: un informe lleno de HIGH no sirve de nada.
 
 FORMA DE RESPONDER
 - Devuelve exactamente un veredicto por candidato, con el mismo id.
-- summary y what_changed en español, claros y concretos, sin jerga técnica. Nunca "se ha detectado un cambio en el elemento": di qué ha pasado.
+- summary y what_changed EN INGLÉS, claros y concretos, sin jerga técnica. Nunca "a change was detected in the element": di qué ha pasado.
+- El TÍTULO es la excepción: va en el idioma de la web, tal cual. Quien abra el enlace tiene que reconocerlo, y una traducción rompe esa correspondencia.
+- previous_value y new_value también se copian tal cual de la página: son citas, no traducciones.
 - Si el cambio sustituye un valor (una fecha, una hora, un precio), rellena previous_value y new_value con el valor exacto.
 - No inventes nada que no esté en el texto. Si el contenido es ambiguo, dilo en reasoning y baja la prioridad.`;
 

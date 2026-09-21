@@ -2,24 +2,33 @@ import { config } from '../config/index.js';
 import { categoryLabel } from './analyze.js';
 
 /**
- * The one email of the day.
+ * The one email of the day. Written in English.
  *
  * Laid out the way it was asked for: a rule, the date, the count, then the
  * changes grouped by priority with a coloured marker, then the summary and
  * how many websites had nothing to say. Both a plain-text and an HTML part,
  * because the text part is what lands readably on a watch or in a client
  * that blocks HTML.
+ *
+ * LANGUAGE. Everything this file controls is English. What it does NOT
+ * control is the prose the analyser writes - the summary, "what changed" and
+ * the draft message - which is stored once and read by the dashboard and by
+ * Slack as well. That language is decided in src/monitor/analyze.js.
+ *
+ * One deliberate exception: a change's TITLE stays in the language of the
+ * website it came from. "Höstgolftävling 20 september" is what a reader will
+ * see if they click through, and translating it would break that match.
  */
 
 const MONTHS = [
-  'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
-  'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
 ];
 
 const GROUPS = [
-  { key: 'HIGH', label: 'PRIORIDAD ALTA', dot: '\u{1F534}', colour: '#dc2626' },
-  { key: 'MEDIUM', label: 'PRIORIDAD MEDIA', dot: '\u{1F7E0}', colour: '#ea580c' },
-  { key: 'LOW', label: 'PRIORIDAD BAJA', dot: '\u{1F7E2}', colour: '#16a34a' },
+  { key: 'HIGH', label: 'HIGH PRIORITY', dot: '\u{1F534}', colour: '#dc2626' },
+  { key: 'MEDIUM', label: 'MEDIUM PRIORITY', dot: '\u{1F7E0}', colour: '#ea580c' },
+  { key: 'LOW', label: 'LOW PRIORITY', dot: '\u{1F7E2}', colour: '#16a34a' },
 ];
 
 const RULE = '━'.repeat(34);
@@ -27,7 +36,7 @@ const RULE = '━'.repeat(34);
 export function formatDate(date) {
   const [year, month, day] = String(date ?? '').split('-').map(Number);
   if (!Number.isFinite(year) || !MONTHS[month - 1]) return String(date ?? '');
-  return `${day} DE ${MONTHS[month - 1]} DE ${year}`;
+  return `${MONTHS[month - 1]} ${day}, ${year}`;
 }
 
 const escapeHtml = (value) =>
@@ -49,18 +58,18 @@ function groupByPriority(changes) {
 function textBody(report, groups) {
   const lines = [
     RULE,
-    'INFORME DIARIO DE WEBS',
+    'DAILY WEBSITE REPORT',
     formatDate(report.date),
     RULE,
     '',
     report.total_changes
-      ? `${plural(report.total_changes, 'cambio relevante detectado', 'cambios relevantes detectados')}`
-      : 'Sin cambios relevantes',
+      ? `${plural(report.total_changes, 'relevant change found', 'relevant changes found')}`
+      : 'No relevant changes',
     ...(report.backlog
-      ? [`(${plural(report.backlog, 'viene de días anteriores', 'vienen de días anteriores')}, pendiente de informar)`]
+      ? [`(${plural(report.backlog, 'is carried over from an earlier day', 'are carried over from earlier days')})`]
       : []),
     ...(report.heldBack
-      ? [`${plural(report.heldBack, 'cambio más queda', 'cambios más quedan')} para el próximo informe (límite por email: ${report.limit})`]
+      ? [`${plural(report.heldBack, 'further change is', 'further changes are')} held for the next report (limit per email: ${report.limit})`]
       : []),
     '',
   ];
@@ -71,22 +80,22 @@ function textBody(report, groups) {
       const kind = categoryLabel(item.category);
       lines.push(
         `${item.website} — ${kind ? `${kind.icon} ${kind.label} · ` : ''}${
-          item.type === 'NEW' ? 'Nuevo' : 'Actualizado'
+          item.type === 'NEW' ? 'New' : 'Updated'
         }`,
       );
       if (item.title) lines.push(item.title);
       if (item.change_date && item.change_date < report.date) {
-        lines.push(`[atrasado: del ${item.change_date}]`);
+        lines.push(`[carried over: from ${item.change_date}]`);
       }
       if (item.summary) lines.push(item.summary);
-      if (item.what_changed) lines.push('', `Qué cambió: ${item.what_changed}`);
+      if (item.what_changed) lines.push('', `What changed: ${item.what_changed}`);
       if (item.previous_value && item.new_value) {
-        lines.push(`Antes: ${item.previous_value}`, `Ahora: ${item.new_value}`);
+        lines.push(`Before: ${item.previous_value}`, `After: ${item.new_value}`);
       }
       if (item.url) lines.push(item.url);
-      // El borrador, separado y entre comillas: se selecciona y se pega.
+      // The draft, set apart and quoted: you select it and you paste it.
       if (item.draft_message) {
-        lines.push('', '\u{1F4AC} Mensaje borrador:', `"${item.draft_message}"`);
+        lines.push('', '\u{1F4AC} Draft message:', `"${item.draft_message}"`);
       }
       lines.push('');
     }
@@ -95,13 +104,13 @@ function textBody(report, groups) {
   lines.push(
     RULE,
     '',
-    'Resumen:',
+    'Summary:',
     report.daily_summary || '—',
     '',
-    `Webs sin cambios: ${report.websitesQuiet}/${report.websitesTotal}`,
+    `Websites with nothing new: ${report.websitesQuiet}/${report.websitesTotal}`,
     '',
   );
-  if (config.mail.appBaseUrl) lines.push(`Ver todos los cambios: ${config.mail.appBaseUrl}`);
+  if (config.mail.appBaseUrl) lines.push(`See every change: ${config.mail.appBaseUrl}`);
   if (config.brand.credit) lines.push('', config.brand.credit);
 
   return lines.join('\n');
@@ -122,13 +131,13 @@ function htmlBody(report, groups) {
 
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Informe diario ${escapeHtml(report.date)}</title></head>
+<title>Daily report ${escapeHtml(report.date)}</title></head>
 <body style="margin:0;background:#f6f6f7;padding:22px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e6e6e9;border-radius:14px">
   <tr><td style="padding:30px 30px 0">
     <div style="border-top:2px solid #111114"></div>
     <div style="font:600 13px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.16em;color:#6b7280;padding:16px 0 4px">
-      INFORME DIARIO DE WEBS
+      DAILY WEBSITE REPORT
     </div>
     <div style="font:700 26px/1.2 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111114;letter-spacing:-.02em">
       ${escapeHtml(formatDate(report.date))}
@@ -137,21 +146,21 @@ function htmlBody(report, groups) {
     <div style="font:400 16px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111114;padding:18px 0 0">
       ${
         report.total_changes
-          ? escapeHtml(plural(report.total_changes, 'cambio relevante detectado', 'cambios relevantes detectados'))
-          : 'Sin cambios relevantes'
+          ? escapeHtml(plural(report.total_changes, 'relevant change found', 'relevant changes found'))
+          : 'No relevant changes'
       }
     </div>
     ${
       report.backlog
         ? `<div style="font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#6b7280;padding:6px 0 0">
-             ${escapeHtml(plural(report.backlog, 'viene de días anteriores', 'vienen de días anteriores'))}, pendiente de informar
+             ${escapeHtml(plural(report.backlog, 'is carried over from an earlier day', 'are carried over from earlier days'))}
            </div>`
         : ''
     }
     ${
       report.heldBack
         ? `<div style="font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ea580c;padding:6px 0 0">
-             ${escapeHtml(plural(report.heldBack, 'cambio más queda', 'cambios más quedan'))} para el próximo informe
+             ${escapeHtml(plural(report.heldBack, 'further change is', 'further changes are'))} held for the next report
            </div>`
         : ''
     }
@@ -159,12 +168,12 @@ function htmlBody(report, groups) {
   ${sections}
   <tr><td style="padding:26px 30px 0">
     <div style="border-top:1px solid #e6e6e9;padding-top:20px">
-      <div style="font:600 12px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.12em;color:#6b7280">RESUMEN</div>
+      <div style="font:600 12px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.12em;color:#6b7280">SUMMARY</div>
       <div style="font:400 15px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#31313a;padding-top:10px">
         ${escapeHtml(report.daily_summary || '—')}
       </div>
       <div style="font:400 13px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#6b7280;padding-top:14px">
-        Webs sin cambios: ${report.websitesQuiet}/${report.websitesTotal}
+        Websites with nothing new: ${report.websitesQuiet}/${report.websitesTotal}
       </div>
     </div>
   </td></tr>
@@ -174,7 +183,7 @@ function htmlBody(report, groups) {
            <a href="${escapeHtml(config.mail.appBaseUrl)}"
               style="display:inline-block;background:#111114;color:#ffffff;text-decoration:none;border-radius:8px;
                      padding:11px 18px;font:600 14px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-             Ver todos los cambios
+             See every change
            </a>
          </td></tr>`
       : ''
@@ -189,14 +198,14 @@ function htmlBody(report, groups) {
 }
 
 function card(item, group) {
-  const label = item.type === 'NEW' ? 'Nuevo' : 'Actualizado';
+  const label = item.type === 'NEW' ? 'New' : 'Updated';
   const kind = categoryLabel(item.category);
   // El borrador va en su propia caja, con borde y comillas: tiene que
   // leerse como "esto es texto para mandar", no como una nota más del aviso.
   const draft = item.draft_message
     ? `<div style="margin-top:12px;background:#f6f6f7;border-left:2px solid #c7c7cc;border-radius:0 8px 8px 0;padding:12px 14px">
          <div style="font:600 11px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.1em;color:#6b7280;text-transform:uppercase">
-           \u{1F4AC} Mensaje borrador
+           \u{1F4AC} Draft message
          </div>
          <div style="font:400 14px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#31313a;padding-top:8px;white-space:pre-wrap">${escapeHtml(item.draft_message)}</div>
        </div>`
@@ -204,8 +213,8 @@ function card(item, group) {
   const compare =
     item.previous_value && item.new_value
       ? `<div style="font:400 13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#31313a;background:#f6f6f7;border-radius:8px;padding:10px 12px;margin-top:10px">
-           <span style="color:#9ca3af">Antes:</span> ${escapeHtml(item.previous_value)}<br>
-           <span style="color:#9ca3af">Ahora:</span> ${escapeHtml(item.new_value)}
+           <span style="color:#9ca3af">Before:</span> ${escapeHtml(item.previous_value)}<br>
+           <span style="color:#9ca3af">After:</span> ${escapeHtml(item.new_value)}
          </div>`
       : '';
 
@@ -213,7 +222,7 @@ function card(item, group) {
     <div style="border-left:3px solid ${group.colour};padding:2px 0 2px 14px">
       <div style="font:600 11px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase">
         ${escapeHtml(item.website)} &middot; ${kind ? `${kind.icon} ${escapeHtml(kind.label)} &middot; ` : ''}${label}${
-          item.stale ? ` &middot; <span style="color:#ea580c">del ${escapeHtml(item.change_date)}</span>` : ''
+          item.stale ? ` &middot; <span style="color:#ea580c">from ${escapeHtml(item.change_date)}</span>` : ''
         }
       </div>
       <div style="font:600 16px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111114;padding-top:6px">
@@ -231,7 +240,7 @@ function card(item, group) {
       ${
         item.what_changed
           ? `<div style="font:400 13px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#6b7280;padding-top:8px">
-               <strong style="color:#31313a;font-weight:600">Qué cambió:</strong> ${escapeHtml(item.what_changed)}
+               <strong style="color:#31313a;font-weight:600">What changed:</strong> ${escapeHtml(item.what_changed)}
              </div>`
           : ''
       }
@@ -252,10 +261,10 @@ export function buildReportEmail(report, { timeZone } = {}) {
   const groups = groupByPriority(changes);
 
   const subject = report.total_changes
-    ? `Informe diario · ${report.total_changes} cambio${report.total_changes === 1 ? '' : 's'}` +
-      (report.high_priority ? ` (${report.high_priority} alta)` : '') +
+    ? `Daily report · ${report.total_changes} change${report.total_changes === 1 ? '' : 's'}` +
+      (report.high_priority ? ` (${report.high_priority} high)` : '') +
       ` · ${date}`
-    : `Informe diario · sin cambios · ${date}`;
+    : `Daily report · no changes · ${date}`;
 
   const shaped = {
     ...report,

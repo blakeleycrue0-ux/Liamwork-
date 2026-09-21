@@ -396,9 +396,9 @@ test('el correo lleva el borrador y la categoría de cada cambio relevante', () 
   const email = buildReportEmail(report, { timeZone: 'Europe/Madrid' });
 
   for (const part of [email.text, email.html]) {
-    assert.match(part, /Torneo/, 'la categoría se lee en el correo');
-    assert.match(part, /Estado del campo/);
-    assert.match(part, /Mensaje borrador/i, 'y el borrador está etiquetado');
+    assert.match(part, /Tournaments/, 'la categoría se lee en el correo, en inglés');
+    assert.match(part, /Course information/);
+    assert.match(part, /Draft message/i, 'y el borrador está etiquetado');
     assert.match(part, /se ha convocado el torneo de otoño/i);
     assert.match(part, /el campo estará cerrado el sábado/i);
   }
@@ -435,8 +435,8 @@ test('un cambio sin borrador no deja un hueco con la etiqueta vacía', () => {
   );
 
   assert.match(email.text, /Una noticia antigua sin borrador/, 'el cambio sale igual');
-  assert.doesNotMatch(email.text, /Mensaje borrador/i, 'sin etiqueta huérfana');
-  assert.doesNotMatch(email.html, /Mensaje borrador/i);
+  assert.doesNotMatch(email.text, /Draft message/i, 'sin etiqueta huérfana');
+  assert.doesNotMatch(email.html, /Draft message/i);
 });
 
 /* ------------------------------ capa 5: el informe sigue saliendo */
@@ -483,8 +483,8 @@ test('el informe se construye y se envía, y lleva los borradores dentro', async
 
     // Y el correo que se envió de verdad los enseña.
     const email = buildReportEmail({ ...stored, date: '2026-09-16' }, { timeZone: 'Europe/Madrid' });
-    assert.match(email.text, /Mensaje borrador/);
-    assert.match(email.html, /Mensaje borrador/);
+    assert.match(email.text, /Draft message/);
+    assert.match(email.html, /Draft message/);
     assert.doesNotMatch(email.text, /rabatt|Väderprognos|Facebook-följare/);
   } finally {
     process.env.ANTHROPIC_API_KEY = key;

@@ -196,8 +196,8 @@ test('report_send_when_empty=true: sin nada pendiente, sale el correo de "sin ca
   assert.equal(sent.changes, 0);
 
   const email = buildReportEmail(await buildReport({ date: '2026-05-20' }));
-  assert.match(email.text, /Sin cambios relevantes/);
-  assert.match(email.subject, /sin cambios/);
+  assert.match(email.text, /No relevant changes/);
+  assert.match(email.subject, /no changes/);
 });
 
 test('report_send_when_empty=false: sin nada pendiente, no sale nada', async () => {
@@ -217,8 +217,8 @@ test('"Sin cambios" NUNCA se envía existiendo cambios pendientes', async () => 
     const report = await buildReport({ date, timeZone: 'Europe/Madrid' });
     const email = buildReportEmail(report);
     assert.equal(report.total_changes, 1, `el ${date} sigue arrastrando el pendiente`);
-    assert.doesNotMatch(email.text, /Sin cambios relevantes/, `el ${date} no dice "sin cambios"`);
-    assert.match(email.text, /atrasado: del 2026-06-01/, 'y avisa de que viene atrasado');
+    assert.doesNotMatch(email.text, /No relevant changes/, `el ${date} no dice "sin cambios"`);
+    assert.match(email.text, /carried over: from 2026-06-01/, 'y avisa de que viene atrasado');
   }
 
   const sent = await sendDailyReport({ date: '2026-06-04' });
