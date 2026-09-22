@@ -26,22 +26,45 @@ const int = (value, fallback) => {
  * Por qué NO basta con APP_BASE_URL: es una variable que hay que acordarse de
  * poner, y cuando se olvida el enlace no falla de forma ruidosa - se queda en
  * http://localhost:3000, que para quien recibe el correo significa su propio
- * ordenador. El destinatario pulsa y le sale "no se puede conectar al
- * servidor", sin ninguna pista de por qué.
+ * ordenador. Pulsa y le sale "no se puede conectar al servidor", sin ninguna
+ * pista de por qué. Pasó de verdad.
  *
  * Netlify define URL en todos los despliegues, y este proyecto ya se fía de
  * ella para lanzar la revisión de fondo (status.routes.js). Así que el correo
  * se fía también, y configurar APP_BASE_URL pasa a ser opcional: sólo hace
  * falta si el panel vive en un dominio propio.
  *
- * El orden importa: lo que alguien escribió a mano gana sobre lo que deduce
- * la plataforma, y localhost es el último recurso, que es exactamente lo que
- * se quiere en desarrollo.
+ * Y UNA EXCEPCIÓN A "LO ESCRITO A MANO MANDA": si lo escrito a mano es una
+ * dirección local y la plataforma nos está dando una pública, gana la
+ * pública. No es una corrección arbitraria del gusto de nadie: un enlace a
+ * localhost dentro de un correo es incorrecto por definición, porque el
+ * destinatario nunca es esta máquina. Y es un error fácil de cometer, porque
+ * .env.example trae esa línea literal y copiarla a Netlify es lo natural.
+ *
+ * En local no cambia nada: ahí no hay URL de plataforma, así que localhost
+ * sobrevive, que es lo que se quiere.
  */
+
+/** ¿Apunta esto a la propia máquina, y por tanto no sirve para un correo? */
+const isLocalAddress = (value) => {
+  try {
+    const { hostname } = new URL(value);
+    return ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'].includes(hostname);
+  } catch {
+    return false;
+  }
+};
+
 export function resolveAppBaseUrl(env = process.env) {
-  const candidate = env.APP_BASE_URL || env.URL || env.DEPLOY_PRIME_URL || '';
-  const trimmed = String(candidate).trim().replace(/\/+$/, '');
-  return trimmed || 'http://localhost:3000';
+  const tidy = (value) => String(value ?? '').trim().replace(/\/+$/, '');
+
+  const configured = tidy(env.APP_BASE_URL);
+  // La que da la plataforma. En Netlify, URL es el dominio principal del
+  // sitio y DEPLOY_PRIME_URL el del despliegue de rama.
+  const platform = tidy(env.URL) || tidy(env.DEPLOY_PRIME_URL);
+
+  if (configured && !(isLocalAddress(configured) && platform)) return configured;
+  return platform || 'http://localhost:3000';
 }
 
 const APP_BASE_URL = resolveAppBaseUrl();

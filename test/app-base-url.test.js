@@ -42,7 +42,39 @@ test('un despliegue de rama también da un enlace que abre', () => {
   );
 });
 
+test('una dirección local configurada por error NO gana en producción', () => {
+  // El caso que rompió el correo de verdad: .env.example trae la línea
+  // APP_BASE_URL=http://localhost:3000, y copiarla a Netlify es lo natural.
+  // Un enlace a localhost dentro de un correo es incorrecto por definición:
+  // el destinatario nunca es esta máquina.
+  for (const local of [
+    'http://localhost:3000',
+    'http://localhost',
+    'http://127.0.0.1:3000',
+    'http://0.0.0.0:3000',
+  ]) {
+    assert.equal(
+      resolveAppBaseUrl({ APP_BASE_URL: local, URL: 'https://webcrawer.netlify.app' }),
+      'https://webcrawer.netlify.app',
+      `${local} configurado a mano no debe llegar a un correo`,
+    );
+  }
+
+  // Y también cuando lo único que hay es un despliegue de rama.
+  assert.equal(
+    resolveAppBaseUrl({
+      APP_BASE_URL: 'http://localhost:3000',
+      DEPLOY_PRIME_URL: 'https://rama--webcrawer.netlify.app',
+    }),
+    'https://rama--webcrawer.netlify.app',
+  );
+});
+
 test('en local, y sólo en local, se queda en localhost', () => {
+  // Sin URL de plataforma no hay nada mejor, y es lo que se quiere al
+  // desarrollar: el enlace tiene que abrir el panel de esta máquina.
+  assert.equal(resolveAppBaseUrl({ APP_BASE_URL: 'http://localhost:3000' }), 'http://localhost:3000');
+
   assert.equal(resolveAppBaseUrl({}), 'http://localhost:3000');
   assert.equal(resolveAppBaseUrl({ APP_BASE_URL: '' }), 'http://localhost:3000');
   assert.equal(resolveAppBaseUrl({ APP_BASE_URL: '   ' }), 'http://localhost:3000');
