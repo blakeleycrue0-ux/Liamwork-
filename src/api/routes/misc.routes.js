@@ -81,6 +81,18 @@ settingsRoutes.put(
       }
       patch[key] = value;
     }
+    // De qué clubes habla el correo: ids separados por comas, vacío = todos.
+    // Se normaliza aquí para que en la base no acabe "13, ,x, 13".
+    if (req.body?.report_websites !== undefined) {
+      const raw = String(req.body.report_websites).trim();
+      if (raw && !/^\s*\d+\s*(,\s*\d+\s*)*$/.test(raw)) {
+        throw new ValidationError('report_websites debe ser una lista de ids separados por comas');
+      }
+      patch.report_websites = [
+        ...new Set(raw.split(',').map((part) => part.trim()).filter(Boolean)),
+      ].join(',');
+    }
+
     for (const key of ['notification_mode', 'digest_timezone', 'analysis_model']) {
       if (req.body?.[key] === undefined) continue;
       const value = String(req.body[key]).trim();

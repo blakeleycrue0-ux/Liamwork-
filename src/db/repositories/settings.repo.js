@@ -31,6 +31,13 @@ const DEFAULTS = {
   report_send_when_empty: 'true',
   // Keep LOW-priority changes out of the email. They stay in the dashboard.
   report_include_low: 'true',
+  // De qué clubes habla el correo diario. Lista de ids separados por comas;
+  // vacío significa TODOS, que es lo que quiere una instalación nueva.
+  //
+  // Es un filtro de ENVÍO, no de vigilancia: el crawler sigue recorriendo las
+  // veintisiete webs y el panel las sigue enseñando enteras. Lo único que
+  // cambia es de qué se escribe al trabajador.
+  report_websites: '',
 };
 
 /**

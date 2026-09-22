@@ -79,9 +79,15 @@ export async function recordChange(change, { at = nowIso() } = {}) {
  * @param {string} options.date      the day the report covers
  * @param {number|null} options.reportId  the stored report for that day, if any
  */
-export async function changesForReport({ date, reportId = null, types = REPORTABLE } = {}) {
+export async function changesForReport({
+  date,
+  reportId = null,
+  types = REPORTABLE,
+  websiteIds = null,
+} = {}) {
   const db = await getDb();
   const placeholders = types.map(() => '?').join(', ');
+  const scope = scopeClause(websiteIds);
   return db.all(
     `SELECT c.*, w.name AS website_name, w.url AS website_url
      FROM detected_changes c
@@ -89,22 +95,48 @@ export async function changesForReport({ date, reportId = null, types = REPORTAB
      WHERE c.change_type IN (${placeholders})
        AND c.change_date <= ?
        AND (c.reported_in IS NULL OR c.reported_in = ?)
+       ${scope.sql}
      ORDER BY CASE c.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
               c.change_date, w.name, c.id`,
-    [...types, date, reportId],
+    [...types, date, reportId, ...scope.params],
   );
 }
 
+/**
+ * El filtro de clubes del informe, en SQL.
+ *
+ * `null` o lista vacía significa "todos", y entonces no se añade cláusula
+ * ninguna: un informe sin filtro tiene que producir exactamente la misma
+ * consulta que antes de que esto existiera.
+ */
+function scopeClause(websiteIds) {
+  if (!websiteIds?.length) return { sql: '', params: [] };
+  return {
+    sql: `AND c.website_id IN (${websiteIds.map(() => '?').join(', ')})`,
+    params: websiteIds,
+  };
+}
+
 /** How many changes the next report would carry, backlog included. */
-export async function countPendingForReport({ date, reportId = null, types = REPORTABLE } = {}) {
+export async function countPendingForReport({
+  date,
+  reportId = null,
+  types = REPORTABLE,
+  websiteIds = null,
+} = {}) {
   const db = await getDb();
   const placeholders = types.map(() => '?').join(', ');
+  // El mismo filtro que la consulta de arriba, porque el panel tiene que
+  // contar lo que de verdad se va a enviar. Un contador que suma clubes que
+  // nadie va a recibir no es un contador, es una trampa.
+  const scope = scopeClause(websiteIds);
   const row = await db.get(
-    `SELECT COUNT(*) AS n FROM detected_changes
-     WHERE change_type IN (${placeholders})
-       AND change_date <= ?
-       AND (reported_in IS NULL OR reported_in = ?)`,
-    [...types, date, reportId],
+    `SELECT COUNT(*) AS n FROM detected_changes c
+     WHERE c.change_type IN (${placeholders})
+       AND c.change_date <= ?
+       AND (c.reported_in IS NULL OR c.reported_in = ?)
+       ${scope.sql}`,
+    [...types, date, reportId, ...scope.params],
   );
   return num(row?.n);
 }

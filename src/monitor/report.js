@@ -37,6 +37,27 @@ import { dayWindow, nextReportAt, previousDate, reportDue } from './window.js';
 
 const PRIORITY_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 
+/**
+ * De qué clubes habla el correo.
+ *
+ * Lee `report_websites`: ids separados por comas. Vacío -> null -> todos, que
+ * es como se comportaba el sistema antes de que este ajuste existiera y como
+ * se comporta una instalación nueva.
+ *
+ * Filtra el ENVÍO, no la vigilancia. Las webs excluidas se siguen rastreando,
+ * se siguen analizando y se siguen viendo enteras en el panel; lo único que
+ * no ocurre es que se escriba sobre ellas al trabajador. Y sus cambios se
+ * quedan sin reclamar, así que el día que un club vuelva a la lista, el
+ * informe los recoge en lugar de haberlos perdido.
+ */
+export function parseWebsiteScope(value) {
+  const ids = String(value ?? '')
+    .split(',')
+    .map((part) => Number.parseInt(part.trim(), 10))
+    .filter((id) => Number.isInteger(id) && id > 0);
+  return ids.length ? [...new Set(ids)] : null;
+}
+
 const SummarySchema = z.object({
   daily_summary: z
     .string()
@@ -71,8 +92,19 @@ export async function buildReport({ date, timeZone, model, client } = {}) {
   // is what lets a re-send reproduce the same content instead of dropping the
   // changes it already delivered.
   const existing = await getReport(reportDate);
-  const changes = await changesForReport({ date: reportDate, reportId: existing?.id ?? null });
-  const websites = await listWebsites({ activeOnly: true });
+  const websiteIds = parseWebsiteScope(settings.report_websites);
+  const changes = await changesForReport({
+    date: reportDate,
+    reportId: existing?.id ?? null,
+    websiteIds,
+  });
+  // Las webs de las que habla ESTE informe. Si hay filtro, "webs sin
+  // novedades: 26/27" sería falso: veintiséis de esas no se estaban mirando
+  // para este correo.
+  const allWebsites = await listWebsites({ activeOnly: true });
+  const websites = websiteIds
+    ? allWebsites.filter((website) => websiteIds.includes(website.id))
+    : allWebsites;
 
   // Highest priority first, then oldest, so if the email has to be cut it is
   // cut at the least important end - and a change that has been waiting the
@@ -347,7 +379,14 @@ export async function reportStatus(now = new Date()) {
   const lastSent = await lastSentDate();
   const target = previousDate(zone, now);
   const existing = await getReport(target);
-  const pending = await countPendingForReport({ date: target, reportId: existing?.id ?? null });
+  // El mismo alcance que usará el envío: el panel no puede prometer cambios
+  // de clubes que el correo no va a mencionar.
+  const websiteIds = parseWebsiteScope(settings.report_websites);
+  const pending = await countPendingForReport({
+    date: target,
+    reportId: existing?.id ?? null,
+    websiteIds,
+  });
   // The setting that decides whether a day with nothing to say still produces
   // an email. Read here so the dashboard states the behaviour that is actually
   // in force, instead of the one the reader assumes.
@@ -357,6 +396,8 @@ export async function reportStatus(now = new Date()) {
   return {
     timezone: zone,
     hour,
+    // Cuántos clubes entran en el correo. null = todos.
+    websites_scope: websiteIds ? websiteIds.length : null,
     covers_date: target,
     last_sent_date: lastSent,
     due: reportDue({ timeZone: zone, hour, lastSentDate: lastSent, now }),
