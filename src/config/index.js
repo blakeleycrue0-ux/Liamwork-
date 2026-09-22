@@ -19,6 +19,33 @@ const int = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+/**
+ * La dirección pública del panel: la que va en el botón "See every change"
+ * del correo y en el "View change" de Slack.
+ *
+ * Por qué NO basta con APP_BASE_URL: es una variable que hay que acordarse de
+ * poner, y cuando se olvida el enlace no falla de forma ruidosa - se queda en
+ * http://localhost:3000, que para quien recibe el correo significa su propio
+ * ordenador. El destinatario pulsa y le sale "no se puede conectar al
+ * servidor", sin ninguna pista de por qué.
+ *
+ * Netlify define URL en todos los despliegues, y este proyecto ya se fía de
+ * ella para lanzar la revisión de fondo (status.routes.js). Así que el correo
+ * se fía también, y configurar APP_BASE_URL pasa a ser opcional: sólo hace
+ * falta si el panel vive en un dominio propio.
+ *
+ * El orden importa: lo que alguien escribió a mano gana sobre lo que deduce
+ * la plataforma, y localhost es el último recurso, que es exactamente lo que
+ * se quiere en desarrollo.
+ */
+export function resolveAppBaseUrl(env = process.env) {
+  const candidate = env.APP_BASE_URL || env.URL || env.DEPLOY_PRIME_URL || '';
+  const trimmed = String(candidate).trim().replace(/\/+$/, '');
+  return trimmed || 'http://localhost:3000';
+}
+
+const APP_BASE_URL = resolveAppBaseUrl();
+
 export const config = {
   env: process.env.NODE_ENV || 'development',
   get isProduction() {
@@ -124,14 +151,14 @@ export const config = {
    */
   slack: {
     webhookUrl: process.env.SLACK_WEBHOOK_URL || '',
-    // Sólo para el botón "Ver el cambio" del mensaje. No es un secreto.
-    appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+    // Sólo para el botón "View change" del mensaje. No es un secreto.
+    appBaseUrl: APP_BASE_URL,
   },
 
   mail: {
     transport: (process.env.MAIL_TRANSPORT || 'console').toLowerCase(),
     from: process.env.MAIL_FROM || 'Web Monitor <monitor@example.com>',
-    appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+    appBaseUrl: APP_BASE_URL,
     smtp: {
       host: process.env.SMTP_HOST || '',
       port: int(process.env.SMTP_PORT, 587),
