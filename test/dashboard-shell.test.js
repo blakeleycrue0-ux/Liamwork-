@@ -107,8 +107,8 @@ test('the report card states the behaviour instead of leaving it to be guessed',
   assert.ok(html.includes('id="digest-empty"'), 'what happens on a day with no changes');
   assert.ok(html.includes('id="digest-last"'), 'when the last one was sent');
   assert.ok(html.includes('id="digest-attempt"'), 'what happened on the last attempt');
-  assert.ok(app.includes("'ACTIVADO'"), 'and it is spelled out, not implied');
-  assert.ok(app.includes("'DESACTIVADO'"));
+  assert.ok(app.includes("'ON'"), 'and it is spelled out, not implied');
+  assert.ok(app.includes("'OFF'"));
 });
 
 test('un fallo se traduce, nunca se repinta ni se calla', () => {

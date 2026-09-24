@@ -67,8 +67,8 @@ async function api(path, { method = 'GET', body } = {}) {
   });
   if (response.status === 401) {
     clearSession();
-    showBanner('La API ha rechazado la petición (401). Revisa AUTH_PROVIDER en Netlify.');
-    throw new Error('No autenticado');
+    showBanner('The API rejected the request (401). Check AUTH_PROVIDER in Netlify.');
+    throw new Error('Not signed in');
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Error ${response.status}`);
@@ -100,22 +100,22 @@ function toast(message, kind = '') {
 const fmtDateTime = (iso) => {
   if (!iso) return '—';
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es-ES');
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('en-GB');
 };
 
 const fmtTime = (iso) => {
   if (!iso) return '—';
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('es-ES');
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB');
 };
 
 function fmtAgo(iso) {
-  if (!iso) return 'nunca';
+  if (!iso) return 'never';
   const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
   if (!Number.isFinite(seconds)) return '—';
-  if (seconds < 0) return `en ${fmtDuration(-seconds)}`;
-  if (seconds < 5) return 'ahora mismo';
-  return `hace ${fmtDuration(seconds)}`;
+  if (seconds < 0) return `in ${fmtDuration(-seconds)}`;
+  if (seconds < 5) return 'just now';
+  return `${fmtDuration(seconds)} ago`;
 }
 
 function fmtDuration(seconds) {
@@ -129,13 +129,13 @@ const DOT_COLOURS = { ok: 'var(--ok)', err: 'var(--bad)', warn: 'var(--warn)', o
 const dot = (kind) =>
   el('span', { className: 'dot', style: `background:${DOT_COLOURS[kind] ?? 'var(--off)'}` });
 
-/** Fecha larga: "16 de septiembre de 2026", para títulos y cabeceras. */
+/** Long date: "16 September 2026", for titles and headings. */
 const fmtLongDay = (value) => {
   if (!value) return '—';
   const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value);
   return Number.isNaN(date.getTime())
     ? String(value)
-    : date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 /** Short date, for a column that has to stay one line wide. */
@@ -144,11 +144,11 @@ const fmtDay = (value) => {
   const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value);
   return Number.isNaN(date.getTime())
     ? String(value)
-    : date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+    : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 
 /**
- * "hoy a las 07:00", "mañana a las 07:00", o la fecha cuando está más lejos.
+ * "today at 07:00", "tomorrow at 07:00", or the date when it is further off.
  *
  * Siempre en la zona horaria DEL INFORME, no en la del navegador. El informe
  * sale a las 07:00 de Madrid tanto si se mira desde Madrid como desde un
@@ -161,16 +161,16 @@ function fmtWhen(iso, timeZone) {
   const zone = timeZone || undefined;
   const dayOf = (value) => value.toLocaleDateString('en-CA', { timeZone: zone });
 
-  const time = date.toLocaleTimeString('es-ES', {
+  const time = date.toLocaleTimeString('en-GB', {
     timeZone: zone, hour: '2-digit', minute: '2-digit',
   });
   const days = Math.round(
     (new Date(`${dayOf(date)}T12:00:00Z`) - new Date(`${dayOf(new Date())}T12:00:00Z`)) / 86400000,
   );
-  if (days === 0) return `hoy a las ${time}`;
-  if (days === 1) return `mañana a las ${time}`;
-  if (days === -1) return `ayer a las ${time}`;
-  return `${date.toLocaleDateString('es-ES', { timeZone: zone, day: 'numeric', month: 'long' })} a las ${time}`;
+  if (days === 0) return `today at ${time}`;
+  if (days === 1) return `tomorrow at ${time}`;
+  if (days === -1) return `yesterday at ${time}`;
+  return `${date.toLocaleDateString('en-GB', { timeZone: zone, day: 'numeric', month: 'long' })} at ${time}`;
 }
 
 /** Two lines in one cell: the relative time on top, the exact one below. */
@@ -218,9 +218,27 @@ const label = (node, text) => {
 };
 
 /** Nombre y dirección, el par que identifica una web en todas las tablas. */
+/**
+ * El nombre de un club abre su ficha.
+ *
+ * Antes sólo lo hacía un icono pequeño al final de la fila, escondido entre
+ * otros tres. El nombre es lo que la gente pulsa, así que el nombre es lo que
+ * tiene que responder; el icono sigue existiendo para quien ya lo conocía.
+ */
 const websiteCell = (website) =>
   el('td', { className: 'primary' }, [
-    el('div', { className: 'cell-name', textContent: website.name }),
+    (() => {
+      const name = el('button', {
+        className: 'cell-name cell-open',
+        type: 'button',
+        textContent: website.name,
+        title: `Open ${website.name}`,
+      });
+      name.addEventListener('click', () =>
+        showClub(website).catch((error) => toast(error.message, 'err')),
+      );
+      return name;
+    })(),
     el('a', {
       href: website.url,
       target: '_blank',
@@ -233,16 +251,16 @@ const websiteCell = (website) =>
 
 /** Cómo está una web ahora mismo, en una palabra. */
 function websiteState(website) {
-  if (!website.active) return { kind: 'off', label: 'Desactivada', note: '' };
+  if (!website.active) return { kind: 'off', label: 'Paused', note: '' };
   if (website.status) {
     return { kind: 'bad', label: website.status.label, note: website.status.note };
   }
-  if (!website.last_checked_at) return { kind: 'warn', label: 'Sin comprobar', note: '' };
+  if (!website.last_checked_at) return { kind: 'warn', label: 'Never checked', note: '' };
   return { kind: 'ok', label: 'Correcta', note: '' };
 }
 
 /* ------------------------------------------------------------------ modal */
-function openModal({ title, fields, submitLabel = 'Guardar', onSubmit, secondary = null }) {
+function openModal({ title, fields, submitLabel = 'Save', onSubmit, secondary = null }) {
   const form = el('form');
   for (const field of fields) {
     if (field.type === 'checkbox') {
@@ -289,7 +307,7 @@ function openModal({ title, fields, submitLabel = 'Guardar', onSubmit, secondary
   const error = el('div', { className: 'error-text', hidden: true });
   const output = el('div', { className: 'preview-box', hidden: true });
   const submit = el('button', { className: 'btn-primary', type: 'submit', textContent: submitLabel });
-  const cancel = el('button', { type: 'button', textContent: 'Cancelar' });
+  const cancel = el('button', { type: 'button', textContent: 'Cancel' });
 
   const readValues = () =>
     Object.fromEntries(
@@ -355,11 +373,11 @@ function confirmDialog(message) {
 /* ------------------------------------------------------------ summary tab */
 
 const CRAWLER_STATES = {
-  running: { kind: 'ok', label: 'Comprobando' },
-  idle: { kind: 'ok', label: 'Sistema activo' },
-  paused: { kind: 'warn', label: 'En pausa' },
-  stalled: { kind: 'bad', label: 'Sin ejecutarse' },
-  never: { kind: 'off', label: 'Sin estrenar' },
+  running: { kind: 'ok', label: 'Checking' },
+  idle: { kind: 'ok', label: 'System active' },
+  paused: { kind: 'warn', label: 'Paused' },
+  stalled: { kind: 'bad', label: 'Not running' },
+  never: { kind: 'off', label: 'Never run' },
 };
 
 /**
@@ -392,11 +410,11 @@ function headline(data) {
   // "Sin ejecutarse" es lo único que justifica dar la alarma: quiere decir que
   // el sistema se ha saltado una revisión entera. Que ahora mismo no haya un
   // proceso corriendo no dice nada - entre revisión y revisión nunca lo hay.
-  if (data.crawler.status === 'stalled') return 'La vigilancia se ha detenido.';
-  if (data.crawler.status === 'paused') return 'Vigilancia en pausa.';
-  if (data.crawler.status === 'never') return 'Aún sin la primera revisión.';
-  if (failing) return failing === 1 ? 'Una web necesita atención.' : `${failing} webs necesitan atención.`;
-  return 'Todo bajo control.';
+  if (data.crawler.status === 'stalled') return 'Monitoring has stopped.';
+  if (data.crawler.status === 'paused') return 'Monitoring is paused.';
+  if (data.crawler.status === 'never') return 'No first check yet.';
+  if (failing) return failing === 1 ? 'One website needs attention.' : `${failing} websites need attention.`;
+  return 'Everything under control.';
 }
 
 /* ======================================================================
@@ -426,25 +444,25 @@ async function renderRun(run) {
   const running = run.status === 'running';
   $('#run-state').replaceChildren(
     running
-      ? stateChip('warn', 'Comprobación en curso…')
+      ? stateChip('warn', 'Check in progress…')
       : run.status === 'failed'
-        ? stateChip('bad', 'Comprobación interrumpida')
-        : stateChip('ok', 'Comprobación completada'),
+        ? stateChip('bad', 'Check interrupted')
+        : stateChip('ok', 'Check complete'),
   );
   $('#run-when').textContent =
-    `${fmtTime(run.started_at)}${run.origin === 'manual' ? ' · a petición' : ''}` +
+    `${fmtTime(run.started_at)}${run.origin === 'manual' ? ' · on request' : ''}` +
     (run.duration_ms ? ` · ${fmtDuration(Math.round(run.duration_ms / 1000))}` : '');
 
   // Los siete recuentos que se pidieron, en el orden en que se leen.
   $('#run-metrics').replaceChildren(
     ...[
-      ['Webs revisadas', run.websites],
-      ['Páginas revisadas', run.pages_seen],
-      ['Páginas con cambio', run.pages_changed],
-      ['Cambios relevantes', run.relevant],
-      ['Cambios ignorados', run.ignored],
-      ['Borradores', run.drafts],
-      ['Webs con error', run.websites_failed],
+      ['Websites checked', run.websites],
+      ['Pages checked', run.pages_seen],
+      ['Pages that moved', run.pages_changed],
+      ['Relevant changes', run.relevant],
+      ['Changes ignored', run.ignored],
+      ['Drafts', run.drafts],
+      ['Websites failing', run.websites_failed],
     ].map(([label, value]) =>
       el('div', { className: 'run-metric' }, [
         el('div', { className: 'value num', textContent: running ? '—' : String(value ?? 0) }),
@@ -464,11 +482,11 @@ async function renderRun(run) {
     ...shown.map((error) =>
       el('div', { className: 'run-error' }, [
         el('span', { className: 'who', textContent: error.website }),
-        el('span', { className: 'what', textContent: error.label ?? 'No se ha podido conectar' }),
+        el('span', { className: 'what', textContent: error.label ?? 'Could not connect' }),
       ]),
     ),
     ...(errors.length > shown.length
-      ? [el('div', { className: 'run-error dim', textContent: `y ${errors.length - shown.length} web(s) más` })]
+      ? [el('div', { className: 'run-error dim', textContent: `and ${errors.length - shown.length} more website(s)` })]
       : []),
   );
 
@@ -508,7 +526,7 @@ function paintRunDetail(detail) {
   const ignored = detail.ignored_count ?? 0;
   $('#run-ignored').hidden = ignored === 0;
   $('#run-ignored-label').textContent =
-    `${ignored} cambio${ignored === 1 ? '' : 's'} ignorado${ignored === 1 ? '' : 's'}`;
+    `${ignored} change${ignored === 1 ? '' : 's'} ignored`;
   $('#run-ignored-body').replaceChildren(
     ...(detail.ignored ?? []).map((change) =>
       el('div', { className: 'run-skip' }, [
@@ -522,7 +540,7 @@ function paintRunDetail(detail) {
 
 /** Un cambio relevante, plegado; se abre para ver el detalle y el borrador. */
 function relevantCard(change) {
-  const kind = CATEGORIES[change.category] ?? 'Cambio';
+  const kind = CATEGORIES[change.category] ?? 'Change';
   const type = CHANGE_TYPES[change.change_type] ?? { label: change.change_type };
   const priority = PRIORITY[change.priority] ?? PRIORITY.LOW;
 
@@ -531,7 +549,7 @@ function relevantCard(change) {
     el('span', { className: 'cat', textContent: kind }),
     el('span', { className: `tag ${change.change_type === 'NEW' ? 'accent' : ''}`, textContent: type.label }),
     el('span', { className: `tag prio-${priority.css}`, textContent: priority.label }),
-    el('span', { className: 'title', textContent: change.title || 'Cambio detectado' }),
+    el('span', { className: 'title', textContent: change.title || 'Change detected' }),
     el('span', { className: 'when', textContent: fmtTime(change.detected_at) }),
   ]);
 
@@ -539,7 +557,7 @@ function relevantCard(change) {
     change.summary ? el('p', { textContent: change.summary }) : '',
     change.what_changed
       ? el('p', { className: 'muted' }, [
-          el('strong', { textContent: 'Qué cambió: ' }),
+          el('strong', { textContent: 'What changed: ' }),
           change.what_changed,
         ])
       : '',
@@ -551,16 +569,16 @@ function relevantCard(change) {
       : '',
     change.draft_message
       ? el('div', {}, [
-          el('h3', { textContent: 'Mensaje borrador' }),
+          el('h3', { textContent: 'Draft message' }),
           el('p', { className: 'draft', textContent: change.draft_message }),
         ])
       : '',
     el('div', { className: 'run-card-links' }, [
       change.url
-        ? el('a', { className: 'btn-ghost btn-sm', href: change.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Ver la página original' })
+        ? el('a', { className: 'btn-ghost btn-sm', href: change.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Open the original page' })
         : '',
       change.slack_notified_at
-        ? el('span', { className: 'dim', textContent: `Avisado por Slack a las ${fmtTime(change.slack_notified_at)}` })
+        ? el('span', { className: 'dim', textContent: `Sent to Slack at ${fmtTime(change.slack_notified_at)}` })
         : '',
     ]),
   ]);
@@ -598,7 +616,7 @@ async function refreshStatus() {
   sysDot.className = `dot ${look.kind}${crawler.status === 'running' ? ' pulse' : ''}`;
   $('#sys-label').textContent = look.label;
   $('#sys-state').title = crawler.last_run_at
-    ? `${look.label} · última revisión ${fmtAgo(crawler.last_run_at)}`
+    ? `${look.label} · last check ${fmtAgo(crawler.last_run_at)}`
     : look.label;
 
   const avatar = $('#avatar');
@@ -610,62 +628,62 @@ async function refreshStatus() {
   $('#hero-line').replaceChildren(
     stateChip(look.kind, look.label),
     el('span', { className: 'sep', textContent: '/' }),
-    el('span', { textContent: `${data.websites.active} webs vigiladas` }),
+    el('span', { textContent: `${data.websites.active} websites watched` }),
     el('span', { className: 'sep', textContent: '/' }),
-    el('span', { textContent: `última revisión ${fmtAgo(data.checks.last_checked_at)}` }),
+    el('span', { textContent: `last check ${fmtAgo(data.checks.last_checked_at)}` }),
     el('span', { className: 'sep', textContent: '/' }),
     el('span', {
       textContent: crawler.next_run_at
-        ? `la próxima, ${fmtWhen(crawler.next_run_at, data.report.timezone)}`
-        : 'sin próxima revisión programada',
+        ? `next one ${fmtWhen(crawler.next_run_at, data.report.timezone)}`
+        : 'no next check scheduled',
     }),
   );
 
   /* --- métricas --- */
   $('#s-websites').textContent = String(data.websites.active);
-  $('#s-websites-sub').textContent = `${data.websites.total} en la lista`;
+  $('#s-websites-sub').textContent = `${data.websites.total} on the list`;
 
   $('#s-ok').textContent = String(data.websites.ok ?? 0);
-  $('#s-ok-sub').textContent = 'responden con normalidad';
+  $('#s-ok-sub').textContent = 'answering normally';
 
   $('#s-bad').textContent = String(failing);
-  $('#s-bad-sub').textContent = failing ? 'el motivo, en la tabla' : 'ninguna rechaza la lectura';
+  $('#s-bad-sub').textContent = failing ? 'the reason is in the table' : 'none refusing to be read';
   $('#metric-bad').className = `metric${failing ? ' is-bad' : ''}`;
 
   $('#s-news').textContent = String(data.report.pending_changes);
-  $('#s-news-sub').textContent = `del ${fmtDay(data.report.covers_date)}`;
+  $('#s-news-sub').textContent = `for ${fmtDay(data.report.covers_date)}`;
 
   $('#s-workers').textContent = String(data.workers.active);
-  $('#s-workers-sub').textContent = `${data.workers.total} dados de alta`;
+  $('#s-workers-sub').textContent = `${data.workers.total} registered`;
 
   $('#s-errors').textContent = String(data.checks.errors_24h);
   $('#s-errors-sub').textContent = data.checks.errors_24h
-    ? 'comprobaciones sin éxito'
-    : 'ninguna comprobación falló';
+    ? 'failed checks'
+    : 'no check failed';
 
   /* --- estado del sistema, en filas --- */
   // Lo que se cuenta aquí es producto, no instalación: cuándo miró, cuánto
   // tardó, cuánto trabajo hizo. Ni transportes, ni modelos, ni tokens.
   $('#system-rows').replaceChildren(
     ...[
-      ['Vigilancia', stateChip(look.kind, look.label)],
-      ['Última revisión', crawler.last_run_at ? fmtTime(crawler.last_run_at) : '—'],
-      ['Ha tardado', crawler.last_run_duration_ms
+      ['Monitoring', stateChip(look.kind, look.label)],
+      ['Last check', crawler.last_run_at ? fmtTime(crawler.last_run_at) : '—'],
+      ['Took', crawler.last_run_duration_ms
         ? fmtDuration(Math.round(crawler.last_run_duration_ms / 1000))
         : '—'],
-      ['Próxima revisión', crawler.next_run_at
+      ['Next check', crawler.next_run_at
         ? fmtWhen(crawler.next_run_at, data.report.timezone)
         : '—'],
       ...(crawler.overdue_by_ms > 0
-        ? [['Retraso acumulado', fmtDuration(Math.round(crawler.overdue_by_ms / 1000))]]
+        ? [['Running late by', fmtDuration(Math.round(crawler.overdue_by_ms / 1000))]]
         : []),
-      ['Analizado esta semana', `${data.usage_7d.analyses} cambio(s)`],
-      ['Aviso por correo', data.mail.configured ? stateChip('ok', 'Configurado') : stateChip('warn', 'Sin configurar')],
+      ['Analysed this week', `${data.usage_7d.analyses} change(s)`],
+      ['Email alerts', data.mail.configured ? stateChip('ok', 'Configured') : stateChip('warn', 'Not configured')],
       // Sólo si hay canal. El webhook no llega nunca al navegador: la API
       // manda un booleano y esto es todo lo que el panel sabe de Slack.
-      ['Aviso por Slack', data.slack?.configured
-        ? stateChip('ok', 'Conectado')
-        : stateChip('off', 'Sin configurar')],
+      ['Slack alerts', data.slack?.configured
+        ? stateChip('ok', 'Connected')
+        : stateChip('off', 'Not configured')],
     ].map(([key, value]) =>
       el('div', {}, [
         el('dt', { textContent: key }),
@@ -681,12 +699,12 @@ async function refreshStatus() {
   $('#recent-posts').replaceChildren(
     ...(data.recent_changes.length
       ? data.recent_changes.slice(0, 6).map((change) => changeRow(change))
-      : [emptyRow(6, 'Todavía no se ha detectado ningún cambio')]),
+      : [emptyRow(6, 'No change has been detected yet')]),
   );
 
   $('#mail-info').textContent = data.mail.configured
-    ? 'El correo saliente está configurado. Las credenciales viven en variables de entorno, nunca en el panel.'
-    : 'No hay servidor de correo configurado: el informe no puede salir.';
+    ? 'Outgoing mail is configured. The credentials live in environment variables, never in the dashboard.'
+    : 'No mail server is configured: the report cannot go out.';
   if (data.brand?.credit) $('#footer-credit').textContent = data.brand.credit;
 
   await Promise.all([refreshDigest().catch(() => {}), refreshSummaryWebsites().catch(() => {})]);
@@ -707,7 +725,7 @@ async function refreshSummaryWebsites() {
 
   const ordered = websites.slice().sort((a, b) => {
     const rank = (site) => (site.failing ? 0 : site.active ? 2 : 1);
-    return rank(a) - rank(b) || a.name.localeCompare(b.name, 'es');
+    return rank(a) - rank(b) || a.name.localeCompare(b.name, 'en');
   });
 
   const count = $('#summary-web-count');
@@ -719,36 +737,36 @@ async function refreshSummaryWebsites() {
           const look = websiteState(website);
           return el('tr', {}, [
             websiteCell(website),
-            label(statusCell(website), 'Estado'),
-            label(el('td', { className: 'cell-time dim', textContent: fmtAgo(website.last_checked_at) }), 'Comprobada'),
+            label(statusCell(website), 'Status'),
+            label(el('td', { className: 'cell-time dim', textContent: fmtAgo(website.last_checked_at) }), 'Checked'),
             label(
               el('td', { className: 'muted' }, [
                 el('span', {
                   className: 'cell-text',
                   title: website.last_new_item_title || '',
-                  textContent: website.last_new_item_title || 'Sin novedades',
+                  textContent: website.last_new_item_title || 'Nothing new',
                 }),
               ]),
-              'Cambio',
+              'Change',
             ),
           ]);
         })
-      : [emptyRow(4, 'La lista de webs está vacía')]),
+      : [emptyRow(4, 'The website list is empty')]),
   );
 }
 
 /** Cómo se dice cada veredicto y cada prioridad, en un solo sitio. */
 const PRIORITY = {
-  HIGH: { css: 'high', label: 'Alta' },
-  MEDIUM: { css: 'medium', label: 'Media' },
-  LOW: { css: 'low', label: 'Baja' },
+  HIGH: { css: 'high', label: 'High' },
+  MEDIUM: { css: 'medium', label: 'Medium' },
+  LOW: { css: 'low', label: 'Low' },
 };
 
 const CHANGE_TYPES = {
-  NEW: { label: 'Nuevo', tag: 'accent' },
-  UPDATED: { label: 'Actualizado', tag: '' },
-  UNCHANGED: { label: 'Sin cambios', tag: '' },
-  IGNORED: { label: 'Irrelevante', tag: '' },
+  NEW: { label: 'New', tag: 'accent' },
+  UPDATED: { label: 'Updated', tag: '' },
+  UNCHANGED: { label: 'No changes', tag: '' },
+  IGNORED: { label: 'Irrelevant', tag: '' },
 };
 
 /**
@@ -758,12 +776,12 @@ const CHANGE_TYPES = {
  * una prueba comprueba que no se separen.
  */
 const CATEGORIES = {
-  TOURNAMENTS: 'Torneo',
-  NEWS_EVENTS: 'Noticia o evento',
-  PRACTICE: 'Clases y prácticas',
-  RESTAURANT: 'Restaurante',
-  CLUB_SECTIONS: 'Secciones del club',
-  COURSE_INFO: 'Estado del campo',
+  TOURNAMENTS: 'Tournaments',
+  NEWS_EVENTS: 'News & events',
+  PRACTICE: 'Practice & lessons',
+  RESTAURANT: 'Restaurant',
+  CLUB_SECTIONS: 'Club sections',
+  COURSE_INFO: 'Course information',
 };
 
 /** Una fila del log: hora, web, evento, resultado, prioridad, estado. */
@@ -773,8 +791,8 @@ function changeRow(change) {
 
   const row = el('tr', { className: 'clickable' }, [
     label(el('td', { className: 'cell-time dim', textContent: fmtTime(change.detected_at) }), 'Hora'),
-    label(el('td', { className: 'primary cell-name', textContent: change.website_name }), 'Web'),
-    label(el('td', { className: 'muted', textContent: 'Cambio detectado' }), 'Evento'),
+    label(el('td', { className: 'primary cell-name', textContent: change.website_name }), 'Website'),
+    label(el('td', { className: 'muted', textContent: 'Change detected' }), 'Evento'),
     label(
       el('td', {}, [
         el('span', { className: `tag ${type.tag}`, textContent: type.label }),
@@ -788,8 +806,8 @@ function changeRow(change) {
       el('td', {}, [
         reportable
           ? change.reported_in
-            ? stateChip('ok', 'Informado')
-            : stateChip('warn', 'Pendiente')
+            ? stateChip('ok', 'Reported')
+            : stateChip('warn', 'Pending')
           : stateChip('off', 'Descartado'),
       ]),
       'Estado',
@@ -803,17 +821,17 @@ function changeRow(change) {
 async function showChangeAudit(id) {
   const { change, audit, versions } = await api(`/reports/changes/${id}`);
   const modal = el('div', { className: 'modal' }, [
-    el('h2', { textContent: change.title || 'Cambio detectado' }),
+    el('h2', { textContent: change.title || 'Change detected' }),
     el('div', {
       className: 'hint',
       textContent:
         `${change.website_name} · ${fmtLongDay(change.change_date)} · ` +
         `${(CHANGE_TYPES[change.change_type] ?? { label: change.change_type }).label} · ` +
         (CATEGORIES[change.category] ? `${CATEGORIES[change.category]} · ` : '') +
-        `prioridad ${(PRIORITY[change.priority] ?? PRIORITY.LOW).label.toLowerCase()}`,
+        `${(PRIORITY[change.priority] ?? PRIORITY.LOW).label.toLowerCase()} priority`,
     }),
     change.summary ? el('p', { textContent: change.summary }) : '',
-    change.what_changed ? el('p', {}, [el('strong', { textContent: 'Qué cambió: ' }), change.what_changed]) : '',
+    change.what_changed ? el('p', {}, [el('strong', { textContent: 'What changed: ' }), change.what_changed]) : '',
     change.previous_value && change.new_value
       ? el('div', { className: 'preview-box mono' }, [
           el('div', { textContent: `Antes: ${change.previous_value}` }),
@@ -824,17 +842,17 @@ async function showChangeAudit(id) {
     // razonamiento, entero y seleccionable, no plegado dentro de un detalle.
     change.draft_message
       ? el('div', {}, [
-          el('h3', { textContent: 'Mensaje borrador' }),
+          el('h3', { textContent: 'Draft message' }),
           el('p', { className: 'draft', textContent: change.draft_message }),
         ])
       : '',
     // Por qué se decidió así. El razonamiento sí es del producto: explica el
     // veredicto. El recuento de tokens y el nombre del modelo no, así que se
     // quedan detrás de "Ver el texto comparado", plegado y sin cifras.
-    el('h3', { textContent: 'Por qué' }),
-    el('p', { className: 'muted', textContent: change.reasoning || 'Sin explicación registrada.' }),
+    el('h3', { textContent: 'Why' }),
+    el('p', { className: 'muted', textContent: change.reasoning || 'No explanation recorded.' }),
     el('details', {}, [
-      el('summary', { textContent: 'Ver el texto comparado' }),
+      el('summary', { textContent: 'See the compared text' }),
       el('pre', { className: 'preview-box mono', textContent: audit.input || '—' }),
       versions.before
         ? el('pre', {
@@ -845,7 +863,7 @@ async function showChangeAudit(id) {
     ]),
   ]);
 
-  const close = el('button', { textContent: 'Cerrar' });
+  const close = el('button', { textContent: 'Close' });
   modal.append(el('div', { className: 'form-actions' }, [close]));
   const backdrop = el('div', { className: 'modal-backdrop' }, [modal]);
   close.addEventListener('click', () => backdrop.remove());
@@ -870,11 +888,11 @@ async function refreshDigest() {
 
   const pending = digest.pending_changes;
   $('#digest-headline').textContent = pending
-    ? `${pending} cambio${pending === 1 ? '' : 's'} esperando el informe`
-    : 'Sin cambios pendientes';
+    ? `${pending} change${pending === 1 ? '' : 's'} waiting for the report`
+    : 'No changes pending';
 
   $('#digest-meta').textContent =
-    `Cubre el ${fmtLongDay(digest.covers_date)} · sale a las ` +
+    `Covers ${fmtLongDay(digest.covers_date)} · goes out at ` +
     `${String(digest.hour).padStart(2, '0')}:00 (${digest.timezone})`;
 
   $('#digest-next').replaceChildren(
@@ -883,12 +901,12 @@ async function refreshDigest() {
 
   $('#digest-last').replaceChildren(
     el('span', {
-      textContent: digest.last_sent_date ? `El del ${fmtDay(digest.last_sent_date)}` : 'Todavía ninguno',
+      textContent: digest.last_sent_date ? `The one for ${fmtDay(digest.last_sent_date)}` : 'None yet',
     }),
   );
 
   $('#digest-pending').replaceChildren(
-    el('span', { textContent: pending ? `${pending} del ${fmtDay(digest.covers_date)}` : 'Ninguno' }),
+    el('span', { textContent: pending ? `${pending} for ${fmtDay(digest.covers_date)}` : 'Ninguno' }),
   );
 
   // El dato que decide si un día tranquilo genera correo o silencio. Sale del
@@ -897,11 +915,11 @@ async function refreshDigest() {
   $('#digest-empty').replaceChildren(
     el('span', { className: `flag ${on ? 'on' : 'off'}` }, [
       el('span', { className: 'track' }),
-      el('span', { textContent: on ? 'ACTIVADO' : 'DESACTIVADO' }),
+      el('span', { textContent: on ? 'ON' : 'OFF' }),
     ]),
     el('span', {
       className: 'note',
-      textContent: on ? 'un día sin cambios sale igualmente' : 'un día sin cambios no genera correo',
+      textContent: on ? 'a quiet day still sends an email' : 'a quiet day sends nothing',
     }),
   );
 
@@ -927,13 +945,13 @@ function renderAttempt(attempt) {
     return;
   }
   const look = ATTEMPT_LOOK[attempt.outcome] ?? ATTEMPT_LOOK.omitido;
-  const origin = attempt.origin === 'manual' ? 'a mano' : 'automático';
+  const origin = attempt.origin === 'manual' ? 'a mano' : 'automatic';
   const verb =
     attempt.outcome === 'enviado'
-      ? `Enviado ${origin}`
+      ? `Sent ${origin}`
       : attempt.outcome === 'fallido'
-        ? `Falló el envío ${origin}`
-        : `No se envió (${origin})`;
+        ? `The ${origin} send failed`
+        : `Not sent (${origin})`;
 
   box.className = `attempt ${look.className}`;
   box.hidden = false;
@@ -942,13 +960,13 @@ function renderAttempt(attempt) {
     el('div', {}, [
       el('div', {}, [
         el('strong', { textContent: verb }),
-        ` · informe del ${fmtDay(attempt.date)} · ${fmtAgo(attempt.at)}`,
+        ` · report for ${fmtDay(attempt.date)} · ${fmtAgo(attempt.at)}`,
       ]),
       attempt.reason ? el('span', { className: 'note', textContent: attempt.reason }) : '',
       attempt.outcome === 'enviado' && attempt.recipients
         ? el('span', {
             className: 'note',
-            textContent: `${attempt.recipients} destinatario(s) · ${attempt.changes} cambio(s)`,
+            textContent: `${attempt.recipients} recipient(s) · ${attempt.changes} change(s)`,
           })
         : '',
     ]),
@@ -966,10 +984,10 @@ async function showDigestPreview() {
   ];
 
   const modal = el('div', { className: 'modal' }, [
-    el('h2', { textContent: `Informe del ${fmtLongDay(date)}` }),
+    el('h2', { textContent: `Report for ${fmtLongDay(date)}` }),
     el('div', { className: 'hint' }, [
-      `Así saldría el correo · ${report.total_changes} cambio(s): ` +
-        `${report.high_priority} de prioridad alta, ${report.medium_priority} media, ${report.low_priority} baja`,
+      `This is how the email would look · ${report.total_changes} change(s): ` +
+        `${report.high_priority} high priority, ${report.medium_priority} medium, ${report.low_priority} low`,
     ]),
     el('p', { textContent: report.daily_summary }),
     ...groups
@@ -982,7 +1000,7 @@ async function showDigestPreview() {
             el('div', { className: 'digest-item' }, [
               el('div', { className: 'what', textContent: item.title }),
               item.summary ? el('div', { className: 'where', textContent: item.summary }) : '',
-              item.what_changed ? el('div', { className: 'where', textContent: `Qué cambió: ${item.what_changed}` }) : '',
+              item.what_changed ? el('div', { className: 'where', textContent: `What changed: ${item.what_changed}` }) : '',
               item.previous_value && item.new_value
                 ? el('div', { className: 'where mono', textContent: `${item.previous_value} → ${item.new_value}` })
                 : '',
@@ -994,10 +1012,10 @@ async function showDigestPreview() {
           ),
         ]),
       ),
-    report.total_changes ? '' : el('div', { className: 'empty', textContent: 'Nada que contar ese día.' }),
+    report.total_changes ? '' : el('div', { className: 'empty', textContent: 'Nothing to report that day.' }),
   ]);
 
-  const close = el('button', { textContent: 'Cerrar' });
+  const close = el('button', { textContent: 'Close' });
   modal.append(el('div', { className: 'form-actions' }, [close]));
   const backdrop = el('div', { className: 'modal-backdrop' }, [modal]);
   close.addEventListener('click', () => backdrop.remove());
@@ -1007,11 +1025,11 @@ async function showDigestPreview() {
 
 /* ----------------------------------------------------------- websites tab */
 const websiteFields = (website = {}) => [
-  { name: 'name', label: 'Nombre', value: website.name, required: true, placeholder: 'FFSP' },
+  { name: 'name', label: 'Name', value: website.name, required: true, placeholder: 'FFSP' },
   { name: 'url', label: 'URL', type: 'url', value: website.url, required: true, placeholder: 'https://ffsp.info' },
   {
     name: 'check_interval',
-    label: 'Intervalo de comprobación (segundos)',
+    label: 'Check interval (seconds)',
     type: 'number',
     min: 10,
     max: 86400,
@@ -1019,11 +1037,11 @@ const websiteFields = (website = {}) => [
   },
   {
     name: 'detection_method',
-    label: 'Método de detección',
+    label: 'Detection method',
     type: 'select',
     value: website.detection_method ?? 'auto',
     options: [
-      { value: 'auto', label: 'Auto (RSS si existe, si no HTML)' },
+      { value: 'auto', label: 'Auto (RSS if present, otherwise HTML)' },
       { value: 'rss', label: 'RSS / Atom' },
       { value: 'html', label: 'Scraping HTML' },
       { value: 'browser', label: 'Navegador headless (Playwright)' },
@@ -1031,15 +1049,15 @@ const websiteFields = (website = {}) => [
   },
   {
     name: 'feed_url',
-    label: 'URL del RSS (opcional)',
+    label: 'RSS URL (optional)',
     value: website.selector_config?.feed_url ?? '',
-    hint: 'Si la web tiene RSS, se usa siempre antes que el scraping.',
+    hint: 'If the website has RSS, it is always preferred over scraping.',
   },
-  { name: 'list', label: 'Selector CSS del listado (opcional)', value: website.selector_config?.list ?? '', placeholder: '.news-list article' },
-  { name: 'title', label: 'Selector del título (opcional)', value: website.selector_config?.title ?? '', placeholder: 'h2 a' },
-  { name: 'link', label: 'Selector del enlace (opcional)', value: website.selector_config?.link ?? '', placeholder: 'a' },
-  { name: 'date', label: 'Selector de la fecha (opcional)', value: website.selector_config?.date ?? '', placeholder: 'time' },
-  { name: 'active', label: 'Activa', type: 'checkbox', value: website.id ? website.active : true },
+  { name: 'list', label: 'CSS selector for the listing (optional)', value: website.selector_config?.list ?? '', placeholder: '.news-list article' },
+  { name: 'title', label: 'Selector for the title (optional)', value: website.selector_config?.title ?? '', placeholder: 'h2 a' },
+  { name: 'link', label: 'Selector for the link (optional)', value: website.selector_config?.link ?? '', placeholder: 'a' },
+  { name: 'date', label: 'Selector for the date (optional)', value: website.selector_config?.date ?? '', placeholder: 'time' },
+  { name: 'active', label: 'Active', type: 'checkbox', value: website.id ? website.active : true },
 ];
 
 const toWebsitePayload = (values) => ({
@@ -1065,14 +1083,14 @@ async function previewDetection(values, output) {
 
   if (!preview.total) {
     output.replaceChildren(
-      el('div', { style: 'font-weight:600', textContent: 'No se ha detectado ninguna publicación' }),
-      el('div', { className: 'hint', textContent: `Método usado: ${preview.method} · ${preview.source}` }),
+      el('div', { style: 'font-weight:600', textContent: 'No entries were detected' }),
+      el('div', { className: 'hint', textContent: `Method used: ${preview.method} · ${preview.source}` }),
       el('div', {
         className: 'hint',
         textContent:
-          'Esta web no publica un RSS reconocible y su listado no encaja con la detección automática. ' +
-          'Rellena "Selector CSS del listado" (y opcionalmente título y enlace) con las clases del bloque ' +
-          'de cada noticia, y vuelve a probar.',
+          'This website has no recognisable RSS and its listing does not match automatic detection. ' +
+          'Fill in "CSS selector for the listing" (and optionally title and link) with the classes of the block ' +
+          'around each entry, then try again.',
       }),
     );
     return;
@@ -1080,7 +1098,7 @@ async function previewDetection(values, output) {
 
   output.replaceChildren(
     el('div', { style: 'font-weight:600', textContent: `Detectadas ${preview.total} publicaciones` }),
-    el('div', { className: 'hint', textContent: `Método usado: ${preview.method} · ${preview.source}` }),
+    el('div', { className: 'hint', textContent: `Method used: ${preview.method} · ${preview.source}` }),
     el(
       'ul',
       { style: 'margin:8px 0 0;padding-left:18px' },
@@ -1109,7 +1127,7 @@ async function detectWithAi(values, output, form) {
   if (detection.total) form.elements.detection_method.value = 'html';
 
   output.replaceChildren(
-    el('div', { style: 'font-weight:600', textContent: `La IA ha encontrado ${detection.total} publicaciones` }),
+    el('div', { style: 'font-weight:600', textContent: `The AI found ${detection.total} entries` }),
     el('div', { className: 'hint', textContent: detection.notes }),
     el(
       'ul',
@@ -1120,25 +1138,25 @@ async function detectWithAi(values, output, form) {
       className: 'hint',
       style: 'margin-top:8px',
       textContent: detection.total
-        ? 'Los selectores ya están rellenados arriba. Guarda y las próximas comprobaciones no usarán la IA.'
-        : 'Si la web carga su contenido con JavaScript, no hay nada que leer en el HTML.',
+        ? 'The selectors above are filled in. Save, and future checks will not use the AI.'
+        : 'If the website loads its content with JavaScript, there is nothing to read in the HTML.',
     }),
   );
 }
 
 /** Shows what the page contains, so a broken listing can be configured. */
 async function inspectSite(values, output) {
-  const payload = toWebsitePayload({ ...values, name: values.name || 'Diagnóstico' });
+  const payload = toWebsitePayload({ ...values, name: values.name || 'Diagnosis' });
   const { inspection } = await api('/websites/inspect', { method: 'POST', body: payload });
 
   const line = (label, value) =>
     el('div', {}, [el('span', { className: 'hint', textContent: `${label}: ` }), String(value)]);
 
   const nodes = [
-    el('div', { style: 'font-weight:600', textContent: 'Qué contiene la página' }),
+    el('div', { style: 'font-weight:600', textContent: 'What the page contains' }),
     line('Descargado', `${Math.round(inspection.bytes / 1024)} KB`),
     line('Texto visible', `${inspection.visible_text_length} caracteres`),
-    line('Enlaces con texto', inspection.total_links),
+    line('Links with text', inspection.total_links),
   ];
 
   if (inspection.likely_javascript) {
@@ -1146,7 +1164,7 @@ async function inspectSite(values, output) {
       el('div', {
         className: 'error-text',
         textContent:
-          'Esta web carga su contenido con JavaScript: el HTML viene casi vacío, así que no hay nada que leer.',
+          'This website loads its content with JavaScript: the HTML arrives almost empty, so there is nothing to read.',
       }),
     );
   }
@@ -1157,14 +1175,14 @@ async function inspectSite(values, output) {
 
   if (inspection.candidates.length) {
     nodes.push(
-      el('div', { style: 'font-weight:600;margin-top:8px', textContent: 'Bloques que se repiten' }),
+      el('div', { style: 'font-weight:600;margin-top:8px', textContent: 'Repeating blocks' }),
       el(
         'ul',
         { style: 'margin:4px 0 0;padding-left:18px' },
         inspection.candidates.map((candidate) =>
           el('li', {}, [
             el('span', { className: 'mono', textContent: candidate.selector }),
-            ` — ${candidate.count} (${candidate.withLink} con enlace)`,
+            ` — ${candidate.count} (${candidate.withLink} with a link)`,
           ]),
         ),
       ),
@@ -1194,16 +1212,16 @@ async function inspectSite(values, output) {
  */
 function websiteModal(website) {
   openModal({
-    title: `Editar ${website.name}`,
+    title: `Edit ${website.name}`,
     fields: websiteFields(website),
-    submitLabel: 'Guardar cambios',
+    submitLabel: 'Save changes',
     secondary: [
-      { label: 'Probar detección', onClick: previewDetection },
-      { label: 'Diagnóstico', onClick: inspectSite, pending: 'Leyendo la página…' },
+      { label: 'Test detection', onClick: previewDetection },
+      { label: 'Diagnosis', onClick: inspectSite, pending: 'Reading the page…' },
     ],
     onSubmit: async (values) => {
       await api(`/websites/${website.id}`, { method: 'PUT', body: toWebsitePayload(values) });
-      toast('Web actualizada', 'ok');
+      toast('Website updated', 'ok');
       await loadWebsites();
       refreshStatus();
     },
@@ -1239,31 +1257,31 @@ function renderWebsites() {
   if (count) {
     count.textContent =
       rows.length === state.websites.length
-        ? `${state.websites.length} webs`
-        : `${rows.length} de ${state.websites.length}`;
+        ? `${state.websites.length} websites`
+        : `${rows.length} of ${state.websites.length}`;
   }
 
   const body = $('#websites-body');
-  if (!state.websites.length) return body.replaceChildren(emptyRow(5, 'La lista de webs está vacía.'));
-  if (!rows.length) return body.replaceChildren(emptyRow(5, 'Ninguna web encaja con este filtro.'));
+  if (!state.websites.length) return body.replaceChildren(emptyRow(5, 'The website list is empty.'));
+  if (!rows.length) return body.replaceChildren(emptyRow(5, 'No website matches this filter.'));
 
   body.replaceChildren(
     ...rows.map((website) => {
       const look = websiteState(website);
 
       const checkBtn = el('button', { className: 'btn-sm btn-ghost' }, [
-        el('span', { textContent: 'Comprobar' }),
+        el('span', { textContent: 'Check' }),
       ]);
       checkBtn.addEventListener('click', async () => {
         const text = checkBtn.querySelector('span');
         checkBtn.disabled = true;
-        text.textContent = 'Comprobando…';
+        text.textContent = 'Checking…';
         try {
           const { result } = await api(`/websites/${website.id}/check`, { method: 'POST' });
           if (result.ok) {
             toast(
-              `${website.name}: ${result.itemsFound} página(s), ${result.newItems} con cambios` +
-                (result.baseline ? ' · línea base' : '') +
+              `${website.name}: ${result.itemsFound} page(s), ${result.newItems} changed` +
+                (result.baseline ? ' · baseline' : '') +
                 (result.note ? ` · ${result.note}` : ''),
               result.itemsFound ? 'ok' : '',
             );
@@ -1274,7 +1292,7 @@ function renderWebsites() {
           toast(error.message, 'err');
         } finally {
           checkBtn.disabled = false;
-          text.textContent = 'Comprobar';
+          text.textContent = 'Check';
           await loadWebsites();
           refreshStatus();
         }
@@ -1294,13 +1312,13 @@ function renderWebsites() {
 
       const actions = [
         checkBtn,
-        iconAction('file', 'Ver el historial', () =>
-          showHistory(website).catch((error) => toast(error.message, 'err')),
+        iconAction('file', 'Open the club', () =>
+          showClub(website).catch((error) => toast(error.message, 'err')),
         ),
-        iconAction('settings', 'Editar cómo se lee', () => websiteModal(website)),
+        iconAction('settings', 'Edit how it is read', () => websiteModal(website)),
         iconAction(
           website.active ? 'pause' : 'check',
-          website.active ? 'Dejar de vigilarla' : 'Volver a vigilarla',
+          website.active ? 'Stop watching it' : 'Watch it again',
           async () => {
             await api(`/websites/${website.id}/toggle`, { method: 'POST', body: { active: !website.active } });
             await loadWebsites();
@@ -1311,7 +1329,7 @@ function renderWebsites() {
 
       return el('tr', {}, [
         websiteCell(website),
-        label(statusCell(website), 'Estado'),
+        label(statusCell(website), 'Status'),
         label(
           el('td', { className: 'cell-time dim', title: fmtDateTime(website.last_checked_at) }, [
             el('span', { textContent: fmtAgo(website.last_checked_at) }),
@@ -1323,10 +1341,10 @@ function renderWebsites() {
             el('span', {
               className: 'cell-text',
               title: website.last_new_item_title || '',
-              textContent: website.last_new_item_title || 'Sin novedades',
+              textContent: website.last_new_item_title || 'Nothing new',
             }),
           ]),
-          'Cambio',
+          'Change',
         ),
         el('td', { className: 'actions' }, [el('div', { className: 'row-actions' }, actions)]),
       ]);
@@ -1334,73 +1352,187 @@ function renderWebsites() {
   );
 }
 
-async function showHistory(website) {
-  const [{ posts }, { logs }] = await Promise.all([
-    api(`/websites/${website.id}/posts?limit=50`),
-    api(`/websites/${website.id}/logs?limit=30`),
+/**
+ * Un club, de un vistazo.
+ *
+ * Lo que alguien quiere al pulsar sobre un club no es una tabla de filas
+ * cortadas: es saber qué ha pasado ahí. Así que primero los números, y
+ * después CADA cambio con su titular grande y su descripción entera - no la
+ * frase de resumen recortada a una línea, que es lo que cabe en una tabla y
+ * lo que no sirve para decidir nada.
+ *
+ * Los descartados no se pintan: se cuentan, y se despliegan si alguien quiere
+ * mirarlos. Misma regla que en los resultados de una comprobación, y por el
+ * mismo motivo: el ruido esconde lo que importa.
+ */
+async function showClub(website) {
+  const [{ changes = [], pages = [] }, { logs = [] }] = await Promise.all([
+    api(`/websites/${website.id}/posts?limit=60`),
+    api(`/websites/${website.id}/logs?limit=20`),
   ]);
 
-  const postRows = posts.length
-    ? posts.map((post) =>
-        el('tr', {}, [
-          el('td', {}, [
-            post.url ? el('a', { href: post.url, target: '_blank', rel: 'noopener', textContent: post.title }) : post.title,
-          ]),
-          el('td', { className: 'muted', textContent: fmtDateTime(post.first_seen_at) }),
-          el('td', {}, [post.notified_at ? dot('ok') : dot('off'), post.notified_at ? 'Enviado' : 'No enviado']),
-        ]),
-      )
-    : [el('tr', {}, [el('td', { colSpan: 3, className: 'empty', textContent: 'Sin publicaciones detectadas' })])];
+  const relevant = changes.filter((change) => ['NEW', 'UPDATED'].includes(change.change_type));
+  const ignored = changes.filter((change) => !['NEW', 'UPDATED'].includes(change.change_type));
+  const look = websiteState(website);
 
-  const logRows = logs.map((log) =>
-    el('tr', {}, [
-      el('td', { className: 'muted', textContent: fmtDateTime(log.checked_at) }),
-      el('td', {}, [dot(log.success ? 'ok' : 'err'), log.success ? 'OK' : 'Error']),
-      el('td', { className: 'mono', textContent: log.success ? `${log.items_found} items / ${log.new_items} nuevos` : log.error_message || '' }),
+  const metric = (value, label) =>
+    el('div', { className: 'run-metric' }, [
+      el('div', { className: 'value num', textContent: String(value) }),
+      el('div', { className: 'label', textContent: label }),
+    ]);
+
+  const modal = el('div', { className: 'modal modal-wide' }, [
+    el('h2', { textContent: website.name }),
+    el('div', { className: 'hint' }, [
+      el('a', {
+        href: website.url,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        textContent: (website.url || '').replace(/^https?:\/\//, '').replace(/\/$/, ''),
+      }),
+    ]),
+    el('div', { className: 'club-state' }, [stateChip(look.kind, look.label)]),
+    el('div', { className: 'run-metrics club-metrics' }, [
+      metric(pages.length, 'Pages tracked'),
+      metric(relevant.length, 'Relevant changes'),
+      metric(ignored.length, 'Discarded'),
+      metric(website.consecutive_errors ?? 0, 'Failed checks'),
+    ]),
+    el('div', { className: 'hint', textContent: `Last checked ${fmtAgo(website.last_checked_at)}` }),
+  ]);
+
+  modal.append(el('h3', { textContent: 'What has happened' }));
+  modal.append(
+    relevant.length
+      ? el('div', { className: 'club-changes' }, relevant.map(clubChange))
+      : el('p', { className: 'muted', textContent: 'No relevant changes recorded for this club yet.' }),
+  );
+
+  if (ignored.length) {
+    modal.append(
+      el('details', { className: 'run-ignored' }, [
+        el('summary', {
+          textContent: `${ignored.length} change${ignored.length === 1 ? '' : 's'} discarded`,
+        }),
+        el(
+          'div',
+          { className: 'run-ignored-body' },
+          ignored.map((change) =>
+            el('div', { className: 'run-skip' }, [
+              el('span', { className: 'who', textContent: fmtDateTime(change.detected_at) }),
+              el('span', { className: 'what', textContent: change.title || '—' }),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  modal.append(
+    el('details', { className: 'run-ignored' }, [
+      el('summary', { textContent: `Last ${logs.length} check${logs.length === 1 ? '' : 's'}` }),
+      el(
+        'div',
+        { className: 'run-ignored-body' },
+        logs.map((log) =>
+          el('div', { className: 'run-skip' }, [
+            el('span', { className: 'who', textContent: fmtDateTime(log.checked_at) }),
+            el('span', {
+              className: 'what',
+              textContent: log.success
+                ? `${log.items_found} page(s) read, ${log.new_items} changed`
+                : 'Check failed',
+            }),
+          ]),
+        ),
+      ),
     ]),
   );
 
-  const modal = el('div', { className: 'modal' }, [
-    el('h2', { textContent: `Historial · ${website.name}` }),
-    el('h2', { className: 'muted', textContent: 'Publicaciones detectadas' }),
-    el('div', { className: 'table' }, [
-      el('table', {}, [
-        el('thead', {}, [el('tr', {}, [el('th', { textContent: 'Título' }), el('th', { textContent: 'Detectada' }), el('th', { textContent: 'Email' })])]),
-        el('tbody', {}, postRows),
-      ]),
-    ]),
-    el('h2', { className: 'muted', style: 'margin-top:16px', textContent: 'Comprobaciones' }),
-    el('div', { className: 'table' }, [
-      el('table', {}, [
-        el('thead', {}, [el('tr', {}, [el('th', { textContent: 'Cuándo' }), el('th', { textContent: 'Resultado' }), el('th', { textContent: 'Detalle' })])]),
-        el('tbody', {}, logRows),
-      ]),
-    ]),
-  ]);
-
-  const closeBtn = el('button', { textContent: 'Cerrar' });
+  const closeBtn = el('button', { textContent: 'Close' });
   modal.append(el('div', { className: 'form-actions' }, [closeBtn]));
   const backdrop = el('div', { className: 'modal-backdrop' }, [modal]);
   closeBtn.addEventListener('click', () => backdrop.remove());
-  backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) backdrop.remove(); });
+  backdrop.addEventListener('mousedown', (event) => {
+    if (event.target === backdrop) backdrop.remove();
+  });
   $('#modal-root').append(backdrop);
+}
+
+/**
+ * Un cambio dentro de la ficha del club: titular y descripción, abiertos.
+ *
+ * Aquí NO se pliega. En los resultados de una comprobación hay trece webs
+ * compitiendo por el sitio y plegar tiene sentido; dentro de un club el
+ * lector ya ha elegido de qué quiere leer, y hacerle pulsar otra vez sobre
+ * cada línea para ver una frase es trabajo que no pidió.
+ */
+function clubChange(change) {
+  const kind = CATEGORIES[change.category] ?? null;
+  const type = CHANGE_TYPES[change.change_type] ?? { label: change.change_type };
+  const priority = PRIORITY[change.priority] ?? PRIORITY.LOW;
+
+  return el('article', { className: 'club-change' }, [
+    el('div', { className: 'club-change-meta' }, [
+      el('span', {
+        className: `tag ${change.change_type === 'NEW' ? 'accent' : ''}`,
+        textContent: type.label,
+      }),
+      kind ? el('span', { className: 'cat', textContent: kind }) : '',
+      el('span', { className: `tag prio-${priority.css}`, textContent: priority.label }),
+      el('span', { className: 'when', textContent: fmtDateTime(change.detected_at) }),
+    ]),
+
+    // El titular, grande y enlazado a la página de la que salió.
+    el('h4', { className: 'club-change-title' }, [
+      change.url
+        ? el('a', {
+            href: change.url,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            textContent: change.title || 'Change detected',
+          })
+        : el('span', { textContent: change.title || 'Change detected' }),
+    ]),
+
+    // Y la descripción entera: el resumen Y lo que cambió, no una de las dos.
+    change.summary ? el('p', { className: 'club-change-body', textContent: change.summary }) : '',
+    change.what_changed
+      ? el('p', { className: 'club-change-body muted' }, [
+          el('strong', { textContent: 'What changed: ' }),
+          change.what_changed,
+        ])
+      : '',
+    change.previous_value && change.new_value
+      ? el('div', { className: 'preview-box mono' }, [
+          el('div', { textContent: `Before: ${change.previous_value}` }),
+          el('div', { textContent: `After: ${change.new_value}` }),
+        ])
+      : '',
+    change.draft_message
+      ? el('div', {}, [
+          el('h3', { textContent: 'Draft message' }),
+          el('p', { className: 'draft', textContent: change.draft_message }),
+        ])
+      : '',
+  ]);
 }
 
 /* ------------------------------------------------------------ workers tab */
 function workerModal(worker) {
   openModal({
-    title: worker ? `Editar ${worker.name}` : 'Añadir trabajador',
+    title: worker ? `Edit ${worker.name}` : 'Add worker',
     fields: [
-      { name: 'name', label: 'Nombre', value: worker?.name, required: true },
+      { name: 'name', label: 'Name', value: worker?.name, required: true },
       { name: 'email', label: 'Email', type: 'email', value: worker?.email, required: true },
-      { name: 'active', label: 'Activo', type: 'checkbox', value: worker ? worker.active : true },
+      { name: 'active', label: 'Active', type: 'checkbox', value: worker ? worker.active : true },
     ],
-    submitLabel: worker ? 'Guardar cambios' : 'Añadir',
+    submitLabel: worker ? 'Save changes' : 'Add',
     onSubmit: async (values) => {
       const payload = { name: values.name, email: values.email, active: values.active };
       if (worker) await api(`/workers/${worker.id}`, { method: 'PUT', body: payload });
       else await api('/workers', { method: 'POST', body: payload });
-      toast(worker ? 'Trabajador actualizado' : 'Trabajador añadido', 'ok');
+      toast(worker ? 'Trabajador actualizado' : 'Worker added', 'ok');
       await loadWorkers();
       refreshStatus();
     },
@@ -1426,11 +1558,11 @@ async function loadWorkers() {
   const count = $('#worker-count');
   if (count) {
     const active = workers.filter((worker) => worker.active).length;
-    count.textContent = `${active} activo(s) de ${workers.length}`;
+    count.textContent = `${active} active of ${workers.length}`;
   }
 
   const body = $('#workers-body');
-  if (!workers.length) return body.replaceChildren(emptyRow(5, 'No hay trabajadores configurados.'));
+  if (!workers.length) return body.replaceChildren(emptyRow(5, 'No workers configured.'));
 
   body.replaceChildren(
     ...workers.map((worker) => {
@@ -1442,11 +1574,11 @@ async function loadWorkers() {
         return button;
       };
 
-      const testBtn = iconAction('mail', 'Enviar un email de prueba', async () => {
+      const testBtn = iconAction('mail', 'Send a test email', async () => {
         testBtn.disabled = true;
         try {
           await api(`/workers/${worker.id}/test-email`, { method: 'POST' });
-          toast(`Email de prueba enviado a ${worker.email}`, 'ok');
+          toast(`Test email sent to ${worker.email}`, 'ok');
         } catch (error) {
           toast(error.message, 'err');
         } finally {
@@ -1454,11 +1586,11 @@ async function loadWorkers() {
         }
       });
 
-      const editBtn = iconAction('settings', 'Editar', () => workerModal(worker));
+      const editBtn = iconAction('settings', 'Edit', () => workerModal(worker));
 
       const toggleBtn = iconAction(
         worker.active ? 'pause' : 'check',
-        worker.active ? 'Dejar de enviarle el informe' : 'Volver a enviarle el informe',
+        worker.active ? 'Stop sending them the report' : 'Send them the report again',
         async () => {
           await api(`/workers/${worker.id}/toggle`, { method: 'POST', body: { active: !worker.active } });
           await loadWorkers();
@@ -1468,9 +1600,9 @@ async function loadWorkers() {
 
       const deleteBtn = iconAction(
         'x-circle',
-        'Eliminar',
+        'Delete',
         async () => {
-          if (!confirmDialog(`¿Eliminar a ${worker.name}? Dejará de recibir el informe diario.`)) return;
+          if (!confirmDialog(`Remove ${worker.name}? They will stop receiving the daily report.`)) return;
           try {
             await api(`/workers/${worker.id}`, { method: 'DELETE' });
             toast('Trabajador eliminado', 'ok');
@@ -1489,20 +1621,20 @@ async function loadWorkers() {
       const last = lastFor(worker.email);
 
       return el('tr', {}, [
-        label(el('td', { className: 'primary cell-name', textContent: worker.name }), 'Nombre'),
+        label(el('td', { className: 'primary cell-name', textContent: worker.name }), 'Name'),
         label(el('td', { className: 'mono dim', textContent: worker.email }), 'Email'),
         label(
-          el('td', {}, [worker.active ? stateChip('ok', 'Activo') : stateChip('off', 'Inactivo')]),
+          el('td', {}, [worker.active ? stateChip('ok', 'Active') : stateChip('off', 'Inactivo')]),
           'Estado',
         ),
         label(
           el('td', { className: 'muted' }, [
             el('span', {
-              textContent: last ? `Informe ${fmtAgo(last.attempted_at)}` : 'Sin informes aún',
-              title: last ? `Informe del ${fmtLongDay(last.report_date)}` : '',
+              textContent: last ? `Report ${fmtAgo(last.attempted_at)}` : 'No reports yet',
+              title: last ? `Report for ${fmtLongDay(last.report_date)}` : '',
             }),
           ]),
-          'Última actividad',
+          'Last activity',
         ),
         el('td', { className: 'actions' }, [
           el('div', { className: 'row-actions' }, [testBtn, editBtn, toggleBtn, deleteBtn]),
@@ -1533,14 +1665,14 @@ async function loadActivity() {
       at: log.checked_at,
       website: log.website_name,
       kind: 'check',
-      event: 'Comprobación',
+      event: 'Check',
       ok: Boolean(log.success),
       state: log.success ? 'ok' : 'bad',
-      result: log.success ? 'Comprobada' : (log.outcome ?? 'No disponible'),
+      result: log.success ? 'Comprobada' : (log.outcome ?? 'Unavailable'),
       priority: null,
       detail: log.success
-        ? `${log.items_found} página(s) leídas, ${log.new_items} con cambios`
-        : log.outcome ?? 'No se pudo comprobar',
+        ? `${log.items_found} page(s) read, ${log.new_items} changed`
+        : log.outcome ?? 'Could not be checked',
       search: `${log.website_name} ${log.outcome ?? ''}`,
     })),
     ...changes.map((change) => {
@@ -1552,14 +1684,14 @@ async function loadActivity() {
         kind: 'change',
         event: reportable
           ? change.change_type === 'NEW'
-            ? 'Contenido nuevo'
-            : 'Página actualizada'
+            ? 'New content'
+            : 'Page updated'
           : change.change_type === 'UNCHANGED'
-            ? 'Sin cambios'
-            : 'Cambio descartado',
+            ? 'No changes'
+            : 'Change discarded',
         ok: true,
         state: reportable ? 'info' : 'off',
-        result: reportable ? 'Entra en el informe' : 'No entra en el informe',
+        result: reportable ? 'Goes in the report' : 'Not in the report',
         priority: reportable ? change.priority : null,
         detail: [change.title, change.summary].filter(Boolean).join(' — ') || '—',
         changeId: change.id,
@@ -1570,20 +1702,20 @@ async function loadActivity() {
       at: attempt.attempted_at,
       website: '—',
       kind: 'report',
-      event: attempt.origin === 'manual' ? 'Informe enviado a mano' : 'Informe automático',
+      event: attempt.origin === 'manual' ? 'Report sent by hand' : 'Automatic report',
       ok: attempt.outcome === 'enviado',
       state: attempt.outcome === 'enviado' ? 'ok' : attempt.outcome === 'fallido' ? 'bad' : 'off',
       result:
         attempt.outcome === 'enviado'
-          ? 'Enviado'
+          ? 'Sent'
           : attempt.outcome === 'fallido'
-            ? 'No se pudo enviar'
-            : 'No hacía falta',
+            ? 'Could not be sent'
+            : 'Not needed',
       priority: null,
       detail:
-        `Del ${fmtDay(attempt.report_date)}, con ${attempt.changes} cambio(s)` +
-        (attempt.recipients?.length ? ` · ${attempt.recipients.length} destinatario(s)` : ''),
-      search: `informe ${attempt.origin} ${attempt.outcome}`,
+        `For ${fmtDay(attempt.report_date)}, with ${attempt.changes} change(s)` +
+        (attempt.recipients?.length ? ` · ${attempt.recipients.length} recipient(s)` : ''),
+      search: `report ${attempt.origin} ${attempt.outcome}`,
     })),
   ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
@@ -1599,7 +1731,7 @@ function fillWebFilter(events) {
   const current = select.value;
   const names = [...new Set(events.map((event) => event.website))].filter((name) => name !== '—').sort();
   select.replaceChildren(
-    el('option', { value: 'all', textContent: 'Todas las webs' }),
+    el('option', { value: 'all', textContent: 'All websites' }),
     ...names.map((name) => el('option', { value: name, textContent: name })),
   );
   if (names.includes(current) || current === 'all') select.value = current;
@@ -1634,7 +1766,7 @@ function renderActivity() {
     count.textContent =
       rows.length === state.activity.length
         ? `${rows.length} sucesos`
-        : `${rows.length} de ${state.activity.length}`;
+        : `${rows.length} of ${state.activity.length}`;
   }
 
   $('#activity-body').replaceChildren(
@@ -1647,7 +1779,7 @@ function renderActivity() {
               ]),
               'Hora',
             ),
-            label(el('td', { className: 'primary cell-name', textContent: event.website }), 'Web'),
+            label(el('td', { className: 'primary cell-name', textContent: event.website }), 'Website'),
             label(el('td', { className: 'muted', textContent: event.event }), 'Evento'),
             label(el('td', {}, [stateChip(event.state, event.result)]), 'Resultado'),
             event.priority
@@ -1667,7 +1799,7 @@ function renderActivity() {
           }
           return row;
         })
-      : [emptyRow(6, 'No hay sucesos que encajen con estos filtros.')]),
+      : [emptyRow(6, 'No events match these filters.')]),
   );
 }
 
@@ -1676,10 +1808,10 @@ function renderActivity() {
  *  the alert emails. */
 function userModal() {
   openModal({
-    title: 'Añadir usuario',
+    title: 'Add user',
     fields: [
       { name: 'email', label: 'Email', type: 'email', required: true },
-      { name: 'password', label: 'Contraseña', type: 'password', required: true, hint: 'Mínimo 8 caracteres.' },
+      { name: 'password', label: 'Password', type: 'password', required: true, hint: 'At least 8 characters.' },
     ],
     submitLabel: 'Crear usuario',
     onSubmit: async (values) => {
@@ -1692,14 +1824,14 @@ function userModal() {
 
 function passwordModal(user) {
   openModal({
-    title: `Cambiar contraseña · ${user.email}`,
+    title: `Change password · ${user.email}`,
     fields: [
-      { name: 'password', label: 'Nueva contraseña', type: 'password', required: true, hint: 'Mínimo 8 caracteres.' },
+      { name: 'password', label: 'New password', type: 'password', required: true, hint: 'At least 8 characters.' },
     ],
-    submitLabel: 'Guardar',
+    submitLabel: 'Save',
     onSubmit: async (values) => {
       await api(`/users/${user.id}/password`, { method: 'PUT', body: { password: values.password } });
-      toast('Contraseña actualizada', 'ok');
+      toast('Password updated', 'ok');
     },
   });
 }
@@ -1709,17 +1841,17 @@ async function loadUsers() {
   state.users = users;
   const body = $('#users-body');
 
-  if (!users.length) return body.replaceChildren(emptyRow(4, 'No hay usuarios.'));
+  if (!users.length) return body.replaceChildren(emptyRow(4, 'No users.'));
 
   body.replaceChildren(
     ...users.map((user) => {
-      const passwordBtn = el('button', { className: 'btn-sm btn-ghost', textContent: 'Contraseña' });
+      const passwordBtn = el('button', { className: 'btn-sm btn-ghost', textContent: 'Password' });
       passwordBtn.addEventListener('click', () => passwordModal(user));
 
-      const deleteBtn = el('button', { className: 'btn-sm btn-danger', textContent: 'Eliminar' });
+      const deleteBtn = el('button', { className: 'btn-sm btn-danger', textContent: 'Delete' });
       deleteBtn.disabled = user.id === state.user?.id;
       deleteBtn.addEventListener('click', async () => {
-        if (!confirmDialog(`¿Eliminar el acceso de ${user.email}?`)) return;
+        if (!confirmDialog(`Remove access for ${user.email}?`)) return;
         try {
           await api(`/users/${user.id}`, { method: 'DELETE' });
           toast('Usuario eliminado', 'ok');
@@ -1733,14 +1865,14 @@ async function loadUsers() {
         label(
           el('td', { className: 'primary cell-name' }, [
             user.email,
-            user.id === state.user?.id ? el('span', { className: 'cell-sub', textContent: '  (tú)' }) : '',
+            user.id === state.user?.id ? el('span', { className: 'cell-sub', textContent: '  (you)' }) : '',
           ]),
           'Email',
         ),
         label(el('td', { className: 'dim', textContent: fmtDay(user.created_at) }), 'Alta'),
         label(
-          el('td', { className: 'muted', textContent: user.last_sign_in_at ? fmtAgo(user.last_sign_in_at) : 'nunca' }),
-          'Último acceso',
+          el('td', { className: 'muted', textContent: user.last_sign_in_at ? fmtAgo(user.last_sign_in_at) : 'never' }),
+          'Last sign-in',
         ),
         el('td', { className: 'actions' }, [
           el('div', { className: 'row-actions' }, [passwordBtn, deleteBtn]),
@@ -1766,9 +1898,9 @@ async function loadSettings() {
 /* --------------------------------------------------------------- bootstrap */
 /** Los motivos que devuelve la API, dichos como se los diría una persona. */
 const REASONS = {
-  'already-sent': 'el informe de ese día ya se había enviado',
-  'no-changes': 'no hubo cambios y el envío en días vacíos está desactivado',
-  'no-active-workers': 'no hay ningún trabajador activo al que enviarlo',
+  'already-sent': 'that day\u2019s report had already been sent',
+  'no-changes': 'there were no changes and sending on quiet days is switched off',
+  'no-active-workers': 'there is no active worker to send it to',
 };
 
 const PAGE_TITLES = {
@@ -1777,7 +1909,7 @@ const PAGE_TITLES = {
   workers: 'Trabajadores',
   activity: 'Actividad',
   users: 'Usuarios',
-  settings: 'Configuración',
+  settings: 'Settings',
 };
 
 function closeMenu() {
@@ -1848,7 +1980,7 @@ async function init() {
   if (!me) {
     // The API is not answering. Show the dashboard anyway and say what happens:
     // there is no login page to fall back to, and nothing to log into.
-    showBanner('La API no responde. Abre /api/diagnostics para ver el motivo.');
+    showBanner('The API is not responding. Open /api/diagnostics to see why.');
   }
   state.csrfToken = me?.csrfToken ?? null;
   state.user = me?.user ?? storedUser();
@@ -1909,8 +2041,8 @@ async function init() {
       const outcome = await api('/digest/run', { method: 'POST' });
       toast(
         outcome.sent
-          ? `Informe enviado a ${outcome.recipients.length} destinatario(s) · ${outcome.changes} cambio(s)`
-          : `No se envió: ${REASONS[outcome.reason] ?? outcome.reason}`,
+          ? `Report sent to ${outcome.recipients.length} recipient(s) · ${outcome.changes} change(s)`
+          : `Not sent: ${REASONS[outcome.reason] ?? outcome.reason}`,
         outcome.sent ? 'ok' : 'err',
       );
       await refreshStatus();
@@ -1946,9 +2078,9 @@ async function init() {
         setTimeout(() => refreshStatus().catch(() => {}), 3000);
       } else {
         toast(
-          `Comprobadas ${outcome.websites} web(s) · ${outcome.pagesChanged} página(s) con cambios · ` +
-            `${outcome.reported} para el informe` +
-            (outcome.failed ? ` · ${outcome.failed} con error` : ''),
+          `Checked ${outcome.websites} website(s) · ${outcome.pagesChanged} page(s) changed · ` +
+            `${outcome.reported} for the report` +
+            (outcome.failed ? ` · ${outcome.failed} failing` : ''),
           outcome.failed ? '' : 'ok',
         );
       }
@@ -1965,7 +2097,7 @@ async function init() {
     button.disabled = true;
     try {
       const result = await api('/workers/test-email', { method: 'POST' });
-      toast(`Email de prueba enviado a ${result.recipients.length} destinatario(s)`, 'ok');
+      toast(`Test email sent to ${result.recipients.length} recipient(s)`, 'ok');
     } catch (error) {
       toast(error.message, 'err');
     } finally {
@@ -2008,7 +2140,7 @@ async function init() {
     try {
       const { settings } = await api('/settings', { method: 'PUT', body: payload });
       state.settings = settings;
-      toast('Configuración guardada', 'ok');
+      toast('Settings saved', 'ok');
       // La tarjeta del informe muestra el envío en días vacíos, así que tiene
       // que reflejar el cambio en el momento, no en el siguiente refresco.
       await refreshDigest().catch(() => {});

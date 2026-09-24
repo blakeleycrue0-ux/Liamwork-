@@ -1278,3 +1278,66 @@ select {
   .run-skip .what { min-width: 0; }
   .run-skip .why { white-space: normal; }
 }
+
+/* ======================================================================
+   FICHA DE UN CLUB
+   ----------------------------------------------------------------------
+   Los números arriba, y debajo cada cambio con su titular y su descripción
+   entera. Sin plegar: quien ha entrado aquí ya ha elegido de qué quiere
+   leer, y hacerle pulsar otra vez sobre cada línea es trabajo que no pidió.
+   ==================================================================== */
+
+/* El nombre de la fila es un botón, pero no debe parecerlo hasta que se
+   apunta: una tabla con veintisiete botones azules es una tabla ilegible. */
+.cell-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cell-open:hover { color: var(--accent-fg); text-decoration: underline; }
+
+.modal-wide { max-width: 760px; }
+.club-state { margin-top: 10px; }
+.club-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 20px 0 8px;
+}
+.club-metrics .value { font-size: 22px; }
+
+.club-changes { display: grid; gap: 4px; }
+
+.club-change {
+  padding: 18px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.club-change:first-child { border-top: 0; }
+
+.club-change-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+}
+.club-change-meta .cat { color: var(--accent-fg); }
+.club-change-meta .when { color: var(--fg-3); font-variant-numeric: tabular-nums; }
+
+.club-change-title {
+  margin: 10px 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+.club-change-title a:hover { color: var(--accent-fg); }
+
+.club-change-body { margin-top: 6px; line-height: 1.6; }
+
+@media (max-width: 640px) {
+  .club-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .club-change-title { font-size: 16px; }
+}

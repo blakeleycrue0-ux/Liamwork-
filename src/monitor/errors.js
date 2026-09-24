@@ -123,17 +123,17 @@ export function publicError(message, { consecutive = 0 } = {}) {
 
   const label =
     kind === 'missing'
-      ? 'Página no encontrada'
+      ? 'Page not found'
       : kind === 'blocked' || kind === 'http' || kind === 'server'
-        ? 'No disponible'
+        ? 'Unavailable'
         : kind === 'timeout'
-          ? 'Sin respuesta'
-          : 'No se ha podido conectar';
+          ? 'No response'
+          : 'Could not connect';
 
   const note =
     consecutive > 1
-      ? `${consecutive} comprobaciones seguidas sin éxito`
-      : 'Última comprobación fallida';
+      ? `${consecutive} checks in a row without success`
+      : 'Last check failed';
 
   return { label, note, kind };
 }
@@ -150,10 +150,10 @@ export function publicError(message, { consecutive = 0 } = {}) {
 export function publicAttemptReason(reason) {
   if (!reason) return null;
   const text = String(reason);
-  if (/^el correo no salió/i.test(text)) return 'El servidor de correo no aceptó el envío.';
+  if (/^el correo no salió/i.test(text)) return 'The mail server refused the message.';
   // Cualquier cosa que traiga rastros de máquina se resume igual.
   if (/smtp|:\d{2,5}\b|ECONN|ETIMEDOUT|EAUTH|certificate|socket/i.test(text)) {
-    return 'El informe no se pudo enviar por un problema técnico.';
+    return 'The report could not be sent because of a technical problem.';
   }
   return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? '' : '.');
 }
